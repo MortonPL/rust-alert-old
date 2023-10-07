@@ -1,6 +1,6 @@
-mod csf;
+mod core;
 
-use crate::csf::{Csf, CsfLabel, CsfLanguageEnum, CsfVersionEnum};
+use crate::core::csf::{Csf, CsfLabel, CsfLanguageEnum, CsfVersionEnum};
 
 use std::fs::File;
 
