@@ -37,7 +37,6 @@ pub enum CsfVersionEnum {
 impl TryFrom<u32> for CsfVersionEnum {
     type Error = Error;
 
-    #[must_use]
     fn try_from(value: u32) -> Result<Self> {
         match value {
             x if x == CsfVersionEnum::Nox as u32 => Ok(CsfVersionEnum::Nox),
@@ -50,7 +49,6 @@ impl TryFrom<u32> for CsfVersionEnum {
 impl TryFrom<CsfVersionEnum> for u32 {
     type Error = Error;
 
-    #[must_use]
     fn try_from(value: CsfVersionEnum) -> Result<Self> {
         Ok(value as u32)
     }
@@ -77,7 +75,6 @@ pub enum CsfLanguageEnum {
 impl TryFrom<u32> for CsfLanguageEnum {
     type Error = Error;
 
-    #[must_use]
     fn try_from(value: u32) -> Result<Self> {
         match value {
             x if x == CsfLanguageEnum::ENUS as u32 => Ok(CsfLanguageEnum::ENUS),
@@ -98,7 +95,6 @@ impl TryFrom<u32> for CsfLanguageEnum {
 impl TryFrom<CsfLanguageEnum> for u32 {
     type Error = Error;
 
-    #[must_use]
     fn try_from(value: CsfLanguageEnum) -> Result<Self> {
         Ok(value as u32)
     }
@@ -140,7 +136,7 @@ impl CsfStringtable {
     /// Looks up first string of a label with given name.
     /// Returns value if a label is found and contains any strings, otherwise None.
     pub fn lookup(&self, name: &String) -> Option<&String> {
-        self.labels.get(name).and_then(|l| l.get_first()).and_then(|s| Some(&s.value))
+        self.labels.get(name).and_then(|l| l.get_first()).map(|s| &s.value)
     }
 
     /// Count all labels in the stringtable.

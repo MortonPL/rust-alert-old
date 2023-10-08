@@ -17,7 +17,6 @@ impl CsfPrefixes {
 }
 
 impl CsfReader {
-    #[must_use]
     /// Create a CSF file struct from input.
     pub fn read_file(reader: &mut dyn Read) -> Result<CsfStringtable> {
         // Read mandatory prefix.
@@ -40,7 +39,6 @@ impl CsfReader {
         Ok(csf)
     }
 
-    #[must_use]
     /// Read a CSF file header and construct an empty CsfStringtable.
     /// Returns an empty stringtable and number of labels to be read.
     pub fn read_csf_header(reader: &mut dyn Read) -> Result<(CsfStringtable, u32)> {
@@ -65,7 +63,6 @@ impl CsfReader {
         Ok((csf, num_labels))
     }
 
-    #[must_use]
     /// Create a CSF label struct from input.
     pub fn read_label(reader: &mut dyn Read) -> Result<CsfLabel> {
         let mut label = CsfLabel::default();
@@ -100,7 +97,6 @@ impl CsfReader {
         Ok(label)
     }
 
-    #[must_use]
     /// Create a CSF string struct from input.
     pub fn read_string(reader: &mut dyn Read) -> Result<CsfString> {
         let mut string = CsfString::default();
@@ -131,7 +127,6 @@ impl CsfReader {
         Ok(string)
     }
 
-    #[must_use]
     /// Read and decode (by bitwise negation) a UTF-16 string.
     fn decode_utf16_string(reader: &mut dyn Read, len: usize) -> Result<String> {
         let mut buf = vec![0u8; len * 2];
@@ -146,7 +141,6 @@ impl CsfReader {
 }
 
 impl CsfWriter {
-    #[must_use]
     /// Write a CSF file struct to output.
     pub fn write_file(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
         Self::write_csf_header(csf, writer)?;
@@ -158,7 +152,6 @@ impl CsfWriter {
         Ok(())
     }
 
-    #[must_use]
     /// Write a CSF file header for a provided stringtable.
     pub fn write_csf_header(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
         writer.write_all(CsfPrefixes::CSF_PREFIX.as_bytes())?;
@@ -171,7 +164,6 @@ impl CsfWriter {
         Ok(())
     }
 
-    #[must_use]
     /// Write a CSF label struct to output.
     pub fn write_label(label: &CsfLabel, writer: &mut dyn Write) -> Result<()> {
         writer.write_all(CsfPrefixes::LBL_PREFIX.as_bytes())?;
@@ -186,7 +178,6 @@ impl CsfWriter {
         Ok(())
     }
 
-    #[must_use]
     /// Write a CSF string struct to output.
     pub fn write_string(string: &CsfString, writer: &mut dyn Write) -> Result<()> {
         let extra_len = string.extra_value.len() as u32;
@@ -209,8 +200,7 @@ impl CsfWriter {
         Ok(())
     }
 
-    #[must_use]
-    fn encode_utf16_string(string: &String) -> Result<Vec<u8>> {
+    fn encode_utf16_string(string: &str) -> Result<Vec<u8>> {
         Ok(string
             .encode_utf16()
             .flat_map(|x| (!x).to_le_bytes())
