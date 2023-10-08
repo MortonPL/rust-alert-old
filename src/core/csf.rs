@@ -1,48 +1,64 @@
-use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::mem::size_of;
+use std::{
+    collections::HashMap,
+    string::{FromUtf16Error, FromUtf8Error},
+};
 
-type AnyError = Box<dyn std::error::Error>;
-
-#[derive(Debug)]
-pub struct Error {
-    msg: String,
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
+    #[error("Unknown version number {x}")]
+    UnknownVerison { x: u32 },
+    #[error("Unknown language number {x}")]
+    UnknownLanguage { x: u32 },
+    #[error("CSF prefix missing")]
+    CsfMissingPrefix,
+    #[error("LBL prefix missing")]
+    LblMissingPrefix,
+    #[error("RTS/WRTS prefix missing!")]
+    RtsOrWrtsMissingPrefix,
+    #[error("{0}")]
+    Utf8(#[from] FromUtf8Error),
+    #[error("{0}")]
+    Utf16(#[from] FromUtf16Error),
 }
 
-impl Error {
-    fn new(msg: String) -> Self {
-        Error { msg }
-    }
-}
+type Result<T> = std::result::Result<T, Error>;
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.msg)
-    }
-}
-
-impl std::error::Error for Error {}
-
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
 pub enum CsfVersionEnum {
-    Nox = 2,
+    /// Also includes BFME.
     #[default]
     Cnc = 3,
+    Nox = 2,
 }
 
 impl TryFrom<u32> for CsfVersionEnum {
     type Error = Error;
-    fn try_from(value: u32) -> Result<Self, Error> {
+
+    #[must_use]
+    fn try_from(value: u32) -> Result<Self> {
         match value {
             x if x == CsfVersionEnum::Nox as u32 => Ok(CsfVersionEnum::Nox),
             x if x == CsfVersionEnum::Cnc as u32 => Ok(CsfVersionEnum::Cnc),
-            x => Err(Error::new(format!("Unknown version number {x}!"))),
+            x => Err(Error::UnknownVerison { x }),
         }
     }
 }
 
+impl TryFrom<CsfVersionEnum> for u32 {
+    type Error = Error;
+
+    #[must_use]
+    fn try_from(value: CsfVersionEnum) -> Result<Self> {
+        Ok(value as u32)
+    }
+}
+
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
 pub enum CsfLanguageEnum {
     #[default]
     ENUS = 0,
@@ -52,6 +68,7 @@ pub enum CsfLanguageEnum {
     ES = 4,
     IT = 5,
     JA = 6,
+    /// Joke WW entry - allegedly Jabberwockie (sic)
     XX = 7,
     KO = 8,
     ZHCN = 9,
@@ -59,7 +76,9 @@ pub enum CsfLanguageEnum {
 
 impl TryFrom<u32> for CsfLanguageEnum {
     type Error = Error;
-    fn try_from(value: u32) -> Result<Self, Error> {
+
+    #[must_use]
+    fn try_from(value: u32) -> Result<Self> {
         match value {
             x if x == CsfLanguageEnum::ENUS as u32 => Ok(CsfLanguageEnum::ENUS),
             x if x == CsfLanguageEnum::ENUK as u32 => Ok(CsfLanguageEnum::ENUK),
@@ -71,235 +90,136 @@ impl TryFrom<u32> for CsfLanguageEnum {
             x if x == CsfLanguageEnum::XX as u32 => Ok(CsfLanguageEnum::XX),
             x if x == CsfLanguageEnum::KO as u32 => Ok(CsfLanguageEnum::KO),
             x if x == CsfLanguageEnum::ZHCN as u32 => Ok(CsfLanguageEnum::ZHCN),
-            x => Err(Error::new(format!("Unknown language number {x}!"))),
+            x => Err(Error::UnknownLanguage { x }),
         }
+    }
+}
+
+impl TryFrom<CsfLanguageEnum> for u32 {
+    type Error = Error;
+
+    #[must_use]
+    fn try_from(value: CsfLanguageEnum) -> Result<Self> {
+        Ok(value as u32)
     }
 }
 
 /// A CSF file contains a header and a list of CSF labels.
 /// Labels are stored as a dictionary for easy manipulation.
-#[derive(Clone, Debug, Default)]
-pub struct Csf {
-    pub version: CsfVersionEnum,
-    pub num_labels: u32,
-    pub num_strings: u32,
-    pub extra: u32,
-    pub language: CsfLanguageEnum,
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CsfStringtable {
+    /// Map of labels with their names as keys.
     pub labels: HashMap<String, CsfLabel>,
+    /// Format version of the stringtable.
+    pub version: CsfVersionEnum,
+    /// Language of the stringtable.
+    pub language: CsfLanguageEnum,
+    /// Extra data attached to the header.
+    pub extra: u32,
 }
 
-impl Csf {
-    const PREFIX: &str = " FSC";
-
-    /// Create a CSF file struct from input.
-    pub fn read(reader: &mut impl Read) -> Result<Self, AnyError> {
-        let mut csf = Self::default();
-        let mut buf = [0u8; size_of::<u32>()];
-
-        reader.read_exact(&mut buf)?;
-        if !std::str::from_utf8(&buf).unwrap().eq(Self::PREFIX) {
-            return Err(Error::new("CSF prefix missing!".to_string()).into());
-        };
-
-        reader.read_exact(&mut buf)?;
-        csf.version = u32::from_le_bytes(buf).try_into()?;
-        reader.read_exact(&mut buf)?;
-        csf.num_labels = u32::from_le_bytes(buf);
-        reader.read_exact(&mut buf)?;
-        csf.num_strings = u32::from_le_bytes(buf);
-        reader.read_exact(&mut buf)?;
-        csf.extra = u32::from_le_bytes(buf);
-        reader.read_exact(&mut buf)?;
-        csf.language = u32::from_le_bytes(buf).try_into()?;
-
-        for _ in 0..csf.num_labels {
-            let label = CsfLabel::read(reader)?;
-            csf.labels.insert(label.label.clone(), label);
-        }
-
-        Ok(csf)
+impl CsfStringtable {
+    /// Creates a new label from name and string, then adds it to the stringtable.
+    /// Returns old label with the same name if overwritten, otherwise None.
+    pub fn create_label(&mut self, label: impl Into<String>, string: impl Into<String>) {
+        self.add_label(CsfLabel::new(label, string));
     }
 
-    // Write a CSF file struct to output.
-    pub fn write(&self, writer: &mut impl Write) -> Result<(), AnyError> {
-        writer.write_all(Self::PREFIX.as_bytes())?;
-        writer.write_all(&(self.version as u32).to_le_bytes())?;
-        writer.write_all(&self.num_labels.to_le_bytes())?;
-        writer.write_all(&self.num_strings.to_le_bytes())?;
-        writer.write_all(&self.extra.to_le_bytes())?;
-        writer.write_all(&(self.language as u32).to_le_bytes())?;
-
-        for label in self.labels.values() {
-            label.write(writer)?;
-        }
-
-        Ok(())
+    /// Adds a label to the stringtable.
+    /// Returns old label with the same name if overwritten, otherwise None.
+    pub fn add_label(&mut self, label: CsfLabel) -> Option<CsfLabel> {
+        self.labels.insert(label.name.clone(), label)
     }
 
-    pub fn add_label(&mut self, label: CsfLabel) {
-        let num_strings = label.strings.len() as u32;
-        if self.labels.insert(label.label.clone(), label).is_none() {
-            self.num_labels += 1;
-            self.num_strings += num_strings;
-        }
+    /// Remove a label with given name from the stringtable.
+    /// Returns removed CsfLabel or None if nothing was removed.
+    pub fn remove_label(&mut self, name: &String) -> Option<CsfLabel> {
+        self.labels.remove(name)
     }
 
-    pub fn remove_label(&mut self, string: &String) {
-        if let Some(label) = self.labels.remove(string) {
-            self.num_labels -= 1;
-            self.num_strings -= label.strings.len() as u32;
-        }
+    /// Looks up first string of a label with given name.
+    /// Returns value if a label is found and contains any strings, otherwise None.
+    pub fn lookup(&self, name: &String) -> Option<&String> {
+        self.labels.get(name).and_then(|l| l.get_first()).and_then(|s| Some(&s.value))
+    }
+
+    /// Count all labels in the stringtable.
+    pub fn get_label_count(&self) -> usize {
+        self.labels.len()
+    }
+
+    /// Count strings in all labels in the stringtable.
+    pub fn get_string_count(&self) -> usize {
+        self.labels.values().fold(0, |acc, l| acc + l.strings.len())
     }
 }
 
 /// A CSF label contains a name and a collection of CSF strings.
 /// Every label in vanilla game files contains only one string.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CsfLabel {
-    pub label: String,
+    /// Name of the label. Game rules and triggers look up this value.
+    pub name: String,
+    /// List of CSF strings associated with the label.
     pub strings: Vec<CsfString>,
 }
 
 impl CsfLabel {
-    const PREFIX: &str = " LBL";
-
-    pub fn new(label: String, string: String) -> Self {
+    pub fn new(label: impl Into<String>, string: impl Into<String>) -> Self {
         CsfLabel {
-            label,
-            strings: vec![CsfString {
-                string,
-                ..Default::default()
-            }],
+            name: label.into(),
+            strings: vec![CsfString::new(string)],
         }
     }
 
-    /// Create a CSF label struct from input.
-    pub fn read(reader: &mut impl Read) -> Result<Self, AnyError> {
-        let mut label = Self::default();
-        let mut buf = [0u8; size_of::<u32>()];
-
-        reader.read_exact(&mut buf)?;
-        if !std::str::from_utf8(&buf).unwrap().eq(Self::PREFIX) {
-            return Err(Error::new("LBL prefix missing!".to_string()).into());
-        };
-
-        reader.read_exact(&mut buf)?;
-        let num_strings = u32::from_le_bytes(buf) as usize;
-        reader.read_exact(&mut buf)?;
-        let label_len = u32::from_le_bytes(buf) as usize;
-
-        let mut buf = vec![0u8; label_len];
-        reader.read_exact(&mut buf)?;
-        label.label = String::from_utf8(buf)?;
-
-        for _ in 0..num_strings {
-            let string = CsfString::read(reader)?;
-            label.strings.push(string);
-        }
-
-        Ok(label)
-    }
-
-    // Write a CSF label struct to output.
-    pub fn write(&self, writer: &mut impl Write) -> Result<(), AnyError> {
-        writer.write_all(Self::PREFIX.as_bytes())?;
-        writer.write_all(&(self.strings.len() as u32).to_le_bytes())?;
-        writer.write_all(&(self.label.len() as u32).to_le_bytes())?;
-        writer.write_all(self.label.as_bytes())?;
-
-        for string in &self.strings {
-            string.write(writer)?;
-        }
-
-        Ok(())
+    /// Returns the first CsfString in a label or None if the label contains no strings.
+    pub fn get_first(&self) -> Option<&CsfString> {
+        self.strings.first()
     }
 }
 
 /// A CSF string contains a LE UTF-16 string. There are two types of CSF strings:
 /// normal (prefix RTS) and wide (prefix WRTS) which can contain an extra ASCII string.
 /// All vanilla game strings are normal.
-/// To obtain actual UTF-16 strings, bytes have to be negated bitwise.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CsfString {
-    pub string: String,
-    pub extra_string: String,
+    /// Content of a string.
+    pub value: String,
+    /// Extra data associated with the string, stored as plain ASCII.
+    pub extra_value: String,
 }
 
 impl CsfString {
-    const PREFIX: &str = " RTS";
-    const PREFIX_WIDE: &str = "WRTS";
-
-    /// Create a CSF string struct from input.
-    pub fn read(reader: &mut impl Read) -> Result<Self, AnyError> {
-        let mut string = CsfString::default();
-        let mut buf = [0u8; size_of::<u32>()];
-
-        reader.read_exact(&mut buf)?;
-        let is_wide = match std::str::from_utf8(&buf).unwrap() {
-            CsfString::PREFIX => Ok(false),
-            CsfString::PREFIX_WIDE => Ok(true),
-            _ => Err(Error::new("RTS/WRTS prefix missing!".into())),
-        }?;
-
-        reader.read_exact(&mut buf)?;
-        let len = u32::from_le_bytes(buf) as usize;
-
-        let mut buf = vec![0u8; len * 2];
-        reader.read_exact(&mut buf)?;
-        let buf: Vec<u16> = buf
-            .chunks(size_of::<u16>())
-            .map(|x| !u16::from_le_bytes(x.try_into().unwrap()))
-            .collect();
-        string.string = String::from_utf16(&buf)?;
-
-        if is_wide {
-            let mut buf = [0u8; size_of::<u32>()];
-            reader.read_exact(&mut buf)?;
-            let extra_len = u32::from_le_bytes(buf) as usize;
-
-            let mut buf = vec![0u8; extra_len];
-            reader.read_exact(&mut buf)?;
-            string.extra_string = String::from_utf8(buf)?;
+    pub fn new(string: impl Into<String>) -> Self {
+        CsfString {
+            value: string.into(),
+            ..Default::default()
         }
-
-        Ok(string)
-    }
-
-    // Write a CSF string struct to output.
-    pub fn write(&self, writer: &mut impl Write) -> Result<(), AnyError> {
-        let extra_len = self.extra_string.len() as u32;
-        let is_wide = extra_len > 0;
-        let prefix = if is_wide {
-            Self::PREFIX_WIDE
-        } else {
-            Self::PREFIX
-        };
-        writer.write_all(prefix.as_bytes())?;
-        writer.write_all(&(self.string.len() as u32).to_le_bytes())?;
-        unsafe {
-            writer.write_all(
-                self.string
-                    .encode_utf16()
-                    .map(|x| !x)
-                    .collect::<Vec<u16>>()
-                    .align_to::<u8>()
-                    .1,
-            )?;
-        }
-        if is_wide {
-            writer.write_all(&extra_len.to_le_bytes())?;
-            writer.write_all(self.extra_string.as_bytes())?;
-        }
-
-        Ok(())
     }
 }
 
 impl From<String> for CsfString {
-    fn from(s: String) -> Self {
+    fn from(string: String) -> Self {
         CsfString {
-            string: s,
+            value: string,
             ..Default::default()
         }
+    }
+}
+
+impl From<CsfString> for String {
+    fn from(string: CsfString) -> Self {
+        string.value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    #[test]
+    fn test_1() {
+        let mut buf: Vec<u8> = vec![];
+        let _a: &mut dyn Write = &mut buf;
     }
 }
