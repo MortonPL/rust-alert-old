@@ -11,6 +11,8 @@
 			"davidanson.vscode-markdownlint",
 			"rust-lang.rust-analyzer",
 			"swellaby.vscode-rust-test-adapter",
+			"tamasfe.even-better-toml",
+			"ryanluker.vscode-coverage-gutters",
 		]
 	},
 	"settings": {
