@@ -207,3 +207,15 @@ impl CsfWriter {
             .collect::<Vec<_>>())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //use crate::core::csf::{CsfLanguageEnum, CsfStringtable, CsfVersionEnum, CsfLabel};
+
+    #[test]
+    /// TODO
+    fn test() {
+        //let mut buf: Vec<u8> = vec![];
+        //let _a: &mut dyn Write = &mut buf;
+    }
+}
