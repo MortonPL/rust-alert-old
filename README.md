@@ -9,9 +9,10 @@ Structures and utilities for C&C formats written in Rust.
 - [ ] INI
   - [ ] INIX?
 - [ ] MIX
-  - [ ] MIX + Blowfish/RSA
-  - [ ] MIX + checksum
-  - [ ] MIX + LMD
+  - [ ] Blowfish/RSA
+  - [x] CRC
+  - [ ] LMD
+  - [ ] Checksum
 - [ ] PAL
   - [ ] PAL <=> PNG
 - [ ] SHP

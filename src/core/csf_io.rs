@@ -210,12 +210,51 @@ impl CsfWriter {
 
 #[cfg(test)]
 mod tests {
-    //use crate::core::csf::{CsfLanguageEnum, CsfStringtable, CsfVersionEnum, CsfLabel};
+    use std::io::Read;
+
+    use crate::core::{csf::{CsfStringtable, CsfLabel, CsfString}, csf_io::{CsfReader, CsfWriter}};
+
+    fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {
+        let string = string.into();
+        let wide = extra_string.into();
+        let first = if wide.len() > 0 {'W'} else {' '};
+        let mut buf = vec![first as u8, 'R' as u8, 'T' as u8, 'S' as u8, string.len() as u8, 0, 0, 0];
+        buf.extend(CsfWriter::encode_utf16_string(&string).unwrap());
+        if wide.len() > 0 {
+            buf.extend(vec![wide.len() as u8, 0, 0, 0]);
+            buf.extend(wide.as_bytes());
+        }
+        buf
+    }
 
     #[test]
-    /// TODO
-    fn test() {
-        //let mut buf: Vec<u8> = vec![];
-        //let _a: &mut dyn Write = &mut buf;
+    /// Read a CsfString (Ok).
+    fn read_string_ok() {
+        let str = "String";
+        let buf = make_string(str, "");
+        let reader: &mut dyn Read = &mut buf.as_slice();
+
+        let expected = CsfString::new(str);
+        let actual = CsfReader::read_string(reader);
+
+        dbg!(&actual);
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Read a wide CsfString (Ok).
+    fn read_wide_string_ok() {
+        let str = "String";
+        let wstr = "Wide";
+        let buf = make_string(str, wstr);
+        let reader: &mut dyn Read = &mut buf.as_slice();
+
+        let expected = CsfString{ value: str.into(), extra_value: wstr.into() };
+        let actual = CsfReader::read_string(reader);
+
+        dbg!(&actual);
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
     }
 }

@@ -129,14 +129,17 @@ impl CsfStringtable {
 
     /// Remove a label with given name from the stringtable.
     /// Returns removed CsfLabel or None if nothing was removed.
-    pub fn remove_label(&mut self, name: &String) -> Option<CsfLabel> {
-        self.labels.remove(name)
+    pub fn remove_label(&mut self, name: impl Into<String>) -> Option<CsfLabel> {
+        self.labels.remove(&name.into())
     }
 
     /// Looks up first string of a label with given name.
     /// Returns value if a label is found and contains any strings, otherwise None.
-    pub fn lookup(&self, name: &String) -> Option<&String> {
-        self.labels.get(name).and_then(|l| l.get_first()).map(|s| &s.value)
+    pub fn lookup(&self, name: impl Into<String>) -> Option<&String> {
+        self.labels
+            .get(&name.into())
+            .and_then(|l| l.get_first())
+            .map(|s| &s.value)
     }
 
     /// Count all labels in the stringtable.
@@ -211,7 +214,7 @@ impl From<CsfString> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::csf::{CsfVersionEnum, CsfLabel, CsfLanguageEnum, CsfStringtable};
+    use crate::core::csf::{CsfLabel, CsfLanguageEnum, CsfStringtable, CsfVersionEnum};
 
     #[test]
     /// Test if CsfLanguageEnum casts to u32.
@@ -238,7 +241,6 @@ mod tests {
         assert_eq!(x, 9);
     }
 
-    
     #[test]
     /// Test if u32 casts to CsfLanguageEnum.
     fn language_enum_from_u32() {
@@ -297,14 +299,113 @@ mod tests {
     }
 
     #[test]
+    /// Test label creation.
     fn stringtable_create_label() {
         let label = "Label".to_string();
         let string = "String".to_string();
 
         let mut expected = CsfStringtable::default();
-        expected.labels.insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+        expected
+            .labels
+            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
         let mut csf = CsfStringtable::default();
         csf.create_label(label, string);
-        assert_eq!(csf, expected)
+
+        assert_eq!(csf, expected);
+    }
+
+    #[test]
+    /// Test label addition.
+    fn stringtable_add_label() {
+        let label = "Label".to_string();
+        let string = "String".to_string();
+
+        let mut expected = CsfStringtable::default();
+        expected
+            .labels
+            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+        let mut csf = CsfStringtable::default();
+        csf.add_label(CsfLabel::new(label.clone(), string.clone()));
+
+        assert_eq!(csf, expected);
+    }
+
+    #[test]
+    /// Test label removal.
+    fn stringtable_remove_label() {
+        let label = "Label".to_string();
+
+        let expected = CsfStringtable::default();
+        let mut csf = CsfStringtable::default();
+        csf.labels
+            .insert(label.clone(), CsfLabel::new(label.clone(), "String"));
+        csf.remove_label(&label);
+
+        assert_eq!(csf, expected);
+    }
+
+    #[test]
+    /// Test label lookup.
+    fn stringtable_lookup_label() {
+        let label = "Label".to_string();
+        let string = "String".to_string();
+
+        let mut csf = CsfStringtable::default();
+        csf.labels
+            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+        let actual = csf.lookup(&label);
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap(), &string);
+
+        let actual = csf.lookup("NoString");
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    /// Test label count.
+    fn stringtable_count_labels() {
+        let label = "Label".to_string();
+        let label2 = "Label2".to_string();
+
+        let expected = 2;
+        let mut csf = CsfStringtable::default();
+        csf.labels
+            .insert(label.clone(), CsfLabel::new(label.clone(), "String"));
+        csf.labels
+            .insert(label2.clone(), CsfLabel::new(label2.clone(), "String2"));
+        let actual = csf.get_label_count();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    /// Test string count.
+    fn stringtable_count_strings() {
+        let label = "Label".to_string();
+        let string = "String".to_string();
+        let string2 = "String2".to_string();
+
+        let expected = 2;
+        let mut csf = CsfStringtable::default();
+        let mut lbl = CsfLabel::new(label.clone(), string.clone());
+        lbl.strings.push(string2.into());
+        csf.labels.insert(label.clone(), lbl);
+        let actual = csf.get_string_count();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    /// Test string count.
+    fn label_get_first() {
+        let string = "String";
+
+        let label = CsfLabel::new("Label", string);
+
+        let expected = label.strings.first().unwrap();
+        let actual = label.get_first();
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap(), expected);
     }
 }
