@@ -12,7 +12,7 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] Blowfish/RSA
   - [x] CRC
   - [ ] LMD
-  - [ ] Checksum nuts
+  - [ ] Checksum
 - [ ] PAL
   - [ ] PAL <=> PNG
 - [ ] SHP
