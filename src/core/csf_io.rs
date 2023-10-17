@@ -212,15 +212,18 @@ impl CsfWriter {
 mod tests {
     use std::io::Read;
 
-    use crate::core::{csf::{CsfStringtable, CsfLabel, CsfString}, csf_io::{CsfReader, CsfWriter}};
+    use crate::core::{
+        csf::CsfString,
+        csf_io::{CsfReader, CsfWriter},
+    };
 
     fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {
         let string = string.into();
         let wide = extra_string.into();
-        let first = if wide.len() > 0 {'W'} else {' '};
-        let mut buf = vec![first as u8, 'R' as u8, 'T' as u8, 'S' as u8, string.len() as u8, 0, 0, 0];
+        let first = if !wide.is_empty() { 'W' } else { ' ' };
+        let mut buf = vec![first as u8, b'R', b'T', b'S', string.len() as u8, 0, 0, 0];
         buf.extend(CsfWriter::encode_utf16_string(&string).unwrap());
-        if wide.len() > 0 {
+        if !wide.is_empty() {
             buf.extend(vec![wide.len() as u8, 0, 0, 0]);
             buf.extend(wide.as_bytes());
         }
@@ -250,7 +253,10 @@ mod tests {
         let buf = make_string(str, wstr);
         let reader: &mut dyn Read = &mut buf.as_slice();
 
-        let expected = CsfString{ value: str.into(), extra_value: wstr.into() };
+        let expected = CsfString {
+            value: str.into(),
+            extra_value: wstr.into(),
+        };
         let actual = CsfReader::read_string(reader);
 
         dbg!(&actual);

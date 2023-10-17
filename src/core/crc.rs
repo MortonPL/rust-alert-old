@@ -10,33 +10,40 @@ pub enum GameEnum {
 }
 
 /// General CRC function that picks implementation depending on game version.
-pub fn crc(value: impl Into<String>, game: GameEnum) -> i32 {
+pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
     match game {
         GameEnum::TD => crc_td(value),
         GameEnum::RA => crc_td(value),
-        _ => crc_ts(value)
+        _ => crc_ts(value),
     }
 }
 
 /// "CRC" function used in TD and RA1.
-pub fn crc_td(value: impl Into<String>) -> i32 {
-    value.into().to_uppercase().into_bytes().chunks(size_of::<u32>()).map(|b| {
-        let mut vec: Vec<u8> = Vec::with_capacity(size_of::<u32>());
-        vec.extend(b);
-        vec.resize(size_of::<u32>(), 0);
-        u32::from_le_bytes(vec.try_into().unwrap())
-    }).fold(0u32, |acc, x| x.wrapping_add(acc.rotate_left(1))) as i32
+pub fn crc_td(value: impl AsRef<str>) -> i32 {
+    let mut v = value.as_ref().to_uppercase().into_bytes();
+    let rem = v.len() % 4;
+    // Rust at its finest
+    let missing = match rem {
+        1 => 3,
+        3 => 1,
+        x => x,
+    };
+    v.extend_from_slice(&[0u8, 0, 0, 0][0..missing]);
+
+    v.chunks(size_of::<u32>())
+        .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+        .fold(0u32, |acc, x| x.wrapping_add(acc.rotate_left(1))) as i32
 }
 
 /// CRC function used in TS and YR.
-pub fn crc_ts(value: impl Into<String>) -> i32 {
-    let mut new_value = value.into().to_uppercase();
+pub fn crc_ts(value: impl AsRef<str>) -> i32 {
+    let mut new_value = value.as_ref().to_uppercase();
     let len = new_value.len();
     let magic = (len >> 2) << 2;
     let len2 = len % 4;
     // Magic WW padding.
     if len2 != 0 {
-        new_value.push((len - magic) as u8 as char);
+        new_value.push(len2 as u8 as char);
         for _ in 0..(3 - len2) {
             new_value.push(new_value.chars().nth(magic).unwrap());
         }
@@ -46,8 +53,8 @@ pub fn crc_ts(value: impl Into<String>) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::crc::{crc, crc_td, crc_ts};
     use crate::core::crc::GameEnum;
+    use crate::core::crc::{crc, crc_td, crc_ts};
 
     #[test]
     /// Test TD CRC function.
@@ -85,10 +92,30 @@ mod tests {
         assert_eq!(crc("cache.mix", GameEnum::TD), crc_td("cache.mix"));
         assert_eq!(crc("cache.mix", GameEnum::TS), crc_ts("cache.mix"));
         // TD and RA use the same implementation.
-        assert_eq!(crc("cache.mix", GameEnum::TD), crc("cache.mix", GameEnum::RA));
+        assert_eq!(
+            crc("cache.mix", GameEnum::TD),
+            crc("cache.mix", GameEnum::RA)
+        );
         // TS and YR use the same implementation.
-        assert_eq!(crc("cache.mix", GameEnum::TD), crc("cache.mix", GameEnum::RA));
+        assert_eq!(
+            crc("cache.mix", GameEnum::TD),
+            crc("cache.mix", GameEnum::RA)
+        );
         // TD/RA and TS/YR use different implementations.
-        assert_ne!(crc("cache.mix", GameEnum::TD), crc("cache.mix", GameEnum::TS));
+        assert_ne!(
+            crc("cache.mix", GameEnum::TD),
+            crc("cache.mix", GameEnum::TS)
+        );
+    }
+}
+
+pub trait ReverseMap {
+    fn reversed(self) -> Self;
+}
+
+impl<T> ReverseMap for Vec<T> {
+    fn reversed(mut self) -> Self {
+        self.reverse();
+        self
     }
 }
