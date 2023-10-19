@@ -1,4 +1,3 @@
-/// Module for C&C CRC functions used for file indexing.
 use crc32fast;
 use std::mem::size_of;
 
@@ -19,36 +18,45 @@ pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
 }
 
 /// "CRC" function used in TD and RA1.
-pub fn crc_td(value: impl AsRef<str>) -> i32 {
-    let mut v = value.as_ref().to_uppercase().into_bytes();
-    let rem = v.len() % 4;
+pub fn crc_td(string: impl AsRef<str>) -> i32 {
+    let mut string_upper = string.as_ref().to_uppercase().into_bytes();
+    if string_upper.is_empty() {
+        return 0;
+    }
     // Rust at its finest
-    let missing = match rem {
+    let missing = match string_upper.len() % 4 {
         1 => 3,
         3 => 1,
         x => x,
     };
-    v.extend_from_slice(&[0u8, 0, 0, 0][0..missing]);
+    // Pad the string so that its length is a multiple of 4.
+    string_upper.extend_from_slice(&[0u8, 0, 0, 0][0..missing]);
 
-    v.chunks(size_of::<u32>())
+    string_upper
+        .chunks(size_of::<u32>())
         .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
         .fold(0u32, |acc, x| x.wrapping_add(acc.rotate_left(1))) as i32
 }
 
 /// CRC function used in TS and YR.
-pub fn crc_ts(value: impl AsRef<str>) -> i32 {
-    let mut new_value = value.as_ref().to_uppercase();
-    let len = new_value.len();
-    let magic = (len >> 2) << 2;
-    let len2 = len % 4;
+pub fn crc_ts(string: impl AsRef<str>) -> i32 {
+    let mut string_upper = string.as_ref().to_uppercase();
+    let len = string_upper.len();
+    if len == 0 {
+        return 0;
+    }
+    let remainder = len % 4;
     // Magic WW padding.
-    if len2 != 0 {
-        new_value.push(len2 as u8 as char);
-        for _ in 0..(3 - len2) {
-            new_value.push(new_value.chars().nth(magic).unwrap());
+    if remainder != 0 {
+        string_upper.push(remainder as u8 as char);
+        // Beginning of the last 4-byte chunk.
+        let padding_idx = (len >> 2) << 2;
+        let padding = string_upper.chars().nth(padding_idx).unwrap();
+        for _ in 0..(3 - remainder) {
+            string_upper.push(padding);
         }
     }
-    crc32fast::hash(new_value.as_bytes()) as i32
+    crc32fast::hash(string_upper.as_bytes()) as i32
 }
 
 #[cfg(test)]
@@ -106,16 +114,5 @@ mod tests {
             crc("cache.mix", GameEnum::TD),
             crc("cache.mix", GameEnum::TS)
         );
-    }
-}
-
-pub trait ReverseMap {
-    fn reversed(self) -> Self;
-}
-
-impl<T> ReverseMap for Vec<T> {
-    fn reversed(mut self) -> Self {
-        self.reverse();
-        self
     }
 }

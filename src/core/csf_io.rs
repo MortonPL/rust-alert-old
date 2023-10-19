@@ -210,16 +210,16 @@ impl CsfWriter {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
+    use std::{collections::HashMap, io::Read};
 
     use crate::core::{
-        csf::CsfString,
+        csf::{CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum},
         csf_io::{CsfReader, CsfWriter},
     };
 
     fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {
-        let string = string.into();
-        let wide = extra_string.into();
+        let string: String = string.into();
+        let wide: String = extra_string.into();
         let first = if !wide.is_empty() { 'W' } else { ' ' };
         let mut buf = vec![first as u8, b'R', b'T', b'S', string.len() as u8, 0, 0, 0];
         buf.extend(CsfWriter::encode_utf16_string(&string).unwrap());
@@ -227,6 +227,34 @@ mod tests {
             buf.extend(vec![wide.len() as u8, 0, 0, 0]);
             buf.extend(wide.as_bytes());
         }
+        buf
+    }
+
+    fn make_label(
+        label: impl Into<String>,
+        string: impl Into<String>,
+        extra_string: impl Into<String>,
+    ) -> Vec<u8> {
+        let label: String = label.into();
+        let mut buf = vec![b' ', b'L', b'B', b'L', 1, 0, 0, 0];
+        buf.extend_from_slice(&(label.len() as u32).to_le_bytes());
+        buf.extend_from_slice(label.as_bytes());
+        buf.extend(make_string(string, extra_string));
+        buf
+    }
+
+    fn make_header() -> Vec<u8> {
+        vec![3u8, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+
+    fn make_stringtable(
+        label: impl Into<String>,
+        string: impl Into<String>,
+        extra_string: impl Into<String>,
+    ) -> Vec<u8> {
+        let mut buf = vec![b' ', b'F', b'S', b'C'];
+        buf.extend(make_header());
+        buf.extend(make_label(label, string, extra_string));
         buf
     }
 
@@ -259,7 +287,131 @@ mod tests {
         };
         let actual = CsfReader::read_string(reader);
 
-        dbg!(&actual);
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Read a CsfLabel (Ok).
+    fn read_label_ok() {
+        let label = "Label";
+        let string = "String";
+        let buf = make_label(label, string, "");
+        let reader: &mut dyn Read = &mut buf.as_slice();
+
+        let expected = CsfLabel {
+            name: label.into(),
+            strings: vec![CsfString::new(string)],
+        };
+        let actual = CsfReader::read_label(reader);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Read a CSF header (Ok).
+    fn read_csf_header_ok() {
+        let buf = make_header();
+        let reader: &mut dyn Read = &mut buf.as_slice();
+
+        let expected = CsfStringtable {
+            version: CsfVersionEnum::Cnc,
+            language: CsfLanguageEnum::ENUS,
+            extra: 0,
+            ..Default::default()
+        };
+        let expected_len = 1;
+        let actual = CsfReader::read_csf_header(reader);
+
+        assert!(actual.is_ok());
+        let (csf, len) = actual.unwrap();
+        assert_eq!(csf, expected);
+        assert_eq!(len, expected_len);
+    }
+
+    #[test]
+    /// Read a CsfStringtable (Ok).
+    fn read_stringtable_ok() {
+        let label = "Label";
+        let string = "String";
+        let buf = make_stringtable(label, string, "");
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let mut labels: HashMap<String, CsfLabel> = HashMap::default();
+        labels.insert(label.to_string(), CsfLabel::new(label, string));
+
+        let expected = CsfStringtable {
+            version: CsfVersionEnum::Cnc,
+            language: CsfLanguageEnum::ENUS,
+            extra: 0,
+            labels,
+        };
+        let actual = CsfReader::read_file(reader);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Write a CsfString (Ok).
+    fn write_string_ok() {
+        let expected = CsfString {
+            value: "String".into(),
+            extra_value: "".into(),
+        };
+
+        let mut buf: Vec<u8> = vec![];
+        CsfWriter::write_string(&expected, &mut buf).unwrap();
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let actual = CsfReader::read_string(reader);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Write a CsfLabel (Ok).
+    fn write_label_ok() {
+        let expected = CsfLabel {
+            name: "Label".into(),
+            strings: vec![CsfString::new("String")],
+        };
+
+        let mut buf: Vec<u8> = vec![];
+        CsfWriter::write_label(&expected, &mut buf).unwrap();
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let actual = CsfReader::read_label(reader);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    /// Write a CSF header (Ok).
+    fn write_header_ok() {
+        let expected = CsfStringtable::default();
+
+        let mut buf: Vec<u8> = vec![];
+        CsfWriter::write_csf_header(&expected, &mut buf).unwrap();
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let actual = CsfReader::read_csf_header(reader);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap().0, expected);
+    }
+
+    #[test]
+    /// Write a CsfStringtable (OK).
+    fn write_stringtable_ok() {
+        let mut expected = CsfStringtable::default();
+        expected.create_label("Label", "String");
+        expected.create_label("Label2", "String2");
+
+        let mut buf: Vec<u8> = vec![];
+        CsfWriter::write_file(&expected, &mut buf).unwrap();
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let actual = CsfReader::read_file(reader);
+
         assert!(actual.is_ok());
         assert_eq!(actual.unwrap(), expected);
     }
