@@ -6,7 +6,7 @@ Structures and utilities for C&C formats written in Rust.
 
 - [x] CSF
   - [ ] CSF <=> INI
-- [ ] INI
+- [x] INI
   - [ ] INIX?
 - [ ] MIX
   - [ ] Blowfish/RSA

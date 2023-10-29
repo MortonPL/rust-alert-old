@@ -143,6 +143,7 @@ impl CsfReader {
 impl CsfWriter {
     /// Write a CSF file struct to output.
     pub fn write_file(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
+        writer.write_all(CsfPrefixes::CSF_PREFIX.as_bytes())?;
         Self::write_csf_header(csf, writer)?;
 
         for label in csf.labels.values() {
@@ -154,7 +155,6 @@ impl CsfWriter {
 
     /// Write a CSF file header for a provided stringtable.
     pub fn write_csf_header(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
-        writer.write_all(CsfPrefixes::CSF_PREFIX.as_bytes())?;
         writer.write_all(&TryInto::<u32>::try_into(csf.version)?.to_le_bytes())?;
         writer.write_all(&(csf.get_label_count() as u32).to_le_bytes())?;
         writer.write_all(&(csf.get_string_count() as u32).to_le_bytes())?;

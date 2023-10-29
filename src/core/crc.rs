@@ -1,6 +1,7 @@
 use crc32fast;
 use std::mem::size_of;
 
+/// Enum representing first & second generation C&C games.
 pub enum GameEnum {
     TD,
     RA,

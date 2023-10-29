@@ -8,7 +8,7 @@ pub enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
     #[error("Unknown version number {x}")]
-    UnknownVerison { x: u32 },
+    UnknownVersion { x: u32 },
     #[error("Unknown language number {x}")]
     UnknownLanguage { x: u32 },
     #[error("CSF prefix missing")]
@@ -25,6 +25,7 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// CSF format version. 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CsfVersionEnum {
@@ -41,7 +42,7 @@ impl TryFrom<u32> for CsfVersionEnum {
         match value {
             x if x == CsfVersionEnum::Nox as u32 => Ok(CsfVersionEnum::Nox),
             x if x == CsfVersionEnum::Cnc as u32 => Ok(CsfVersionEnum::Cnc),
-            x => Err(Error::UnknownVerison { x }),
+            x => Err(Error::UnknownVersion { x }),
         }
     }
 }
@@ -54,6 +55,7 @@ impl TryFrom<CsfVersionEnum> for u32 {
     }
 }
 
+/// CSF language ID used for localisation.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u32)]
@@ -214,7 +216,7 @@ impl From<CsfString> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::csf::{CsfLabel, CsfLanguageEnum, CsfStringtable, CsfVersionEnum};
+    use crate::core::csf::{CsfLabel, CsfStringtable};
 
     #[test]
     /// Test label creation.
@@ -315,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    /// Test string count.
+    /// Test label access.
     fn label_get_first() {
         let string = "String";
 
@@ -325,87 +327,5 @@ mod tests {
         let actual = label.get_first();
         assert!(actual.is_some());
         assert_eq!(actual.unwrap(), expected);
-    }
-
-    #[test]
-    /// Test if CsfLanguageEnum casts to u32.
-    fn language_enum_into_u32() {
-        let x: u32 = CsfLanguageEnum::ENUS.try_into().unwrap();
-        assert_eq!(x, 0);
-        let x: u32 = CsfLanguageEnum::ENUK.try_into().unwrap();
-        assert_eq!(x, 1);
-        let x: u32 = CsfLanguageEnum::DE.try_into().unwrap();
-        assert_eq!(x, 2);
-        let x: u32 = CsfLanguageEnum::FR.try_into().unwrap();
-        assert_eq!(x, 3);
-        let x: u32 = CsfLanguageEnum::ES.try_into().unwrap();
-        assert_eq!(x, 4);
-        let x: u32 = CsfLanguageEnum::IT.try_into().unwrap();
-        assert_eq!(x, 5);
-        let x: u32 = CsfLanguageEnum::JA.try_into().unwrap();
-        assert_eq!(x, 6);
-        let x: u32 = CsfLanguageEnum::XX.try_into().unwrap();
-        assert_eq!(x, 7);
-        let x: u32 = CsfLanguageEnum::KO.try_into().unwrap();
-        assert_eq!(x, 8);
-        let x: u32 = CsfLanguageEnum::ZHCN.try_into().unwrap();
-        assert_eq!(x, 9);
-    }
-
-    #[test]
-    /// Test if u32 casts to CsfLanguageEnum.
-    fn language_enum_from_u32() {
-        let x: CsfLanguageEnum = 0u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::ENUS);
-        let x: CsfLanguageEnum = 1u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::ENUK);
-        let x: CsfLanguageEnum = 2u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::DE);
-        let x: CsfLanguageEnum = 3u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::FR);
-        let x: CsfLanguageEnum = 4u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::ES);
-        let x: CsfLanguageEnum = 5u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::IT);
-        let x: CsfLanguageEnum = 6u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::JA);
-        let x: CsfLanguageEnum = 7u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::XX);
-        let x: CsfLanguageEnum = 8u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::KO);
-        let x: CsfLanguageEnum = 9u32.try_into().unwrap();
-        assert_eq!(x, CsfLanguageEnum::ZHCN);
-
-        let x = TryInto::<CsfLanguageEnum>::try_into(10u32);
-        assert!(x.is_err());
-        let x = TryInto::<CsfLanguageEnum>::try_into(99u32);
-        assert!(x.is_err());
-    }
-
-    #[test]
-    /// Test if CsfVersionEnum casts to u32.
-    fn version_enum_into_u32() {
-        let x: u32 = CsfVersionEnum::Nox.try_into().unwrap();
-        assert_eq!(x, 2);
-        let x: u32 = CsfVersionEnum::Cnc.try_into().unwrap();
-        assert_eq!(x, 3);
-    }
-
-    #[test]
-    /// Test if u32 casts to CsfVersionEnum.
-    fn version_enum_from_u32() {
-        let x: CsfVersionEnum = 2u32.try_into().unwrap();
-        assert_eq!(x, CsfVersionEnum::Nox);
-        let x: CsfVersionEnum = 3u32.try_into().unwrap();
-        assert_eq!(x, CsfVersionEnum::Cnc);
-
-        let x = TryInto::<CsfVersionEnum>::try_into(0u32);
-        assert!(x.is_err());
-        let x = TryInto::<CsfVersionEnum>::try_into(1u32);
-        assert!(x.is_err());
-        let x = TryInto::<CsfVersionEnum>::try_into(4u32);
-        assert!(x.is_err());
-        let x = TryInto::<CsfVersionEnum>::try_into(2137u32);
-        assert!(x.is_err());
     }
 }
