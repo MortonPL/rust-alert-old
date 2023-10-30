@@ -1,9 +1,5 @@
 // CSF to INI and INI to CSF tool.
-use std::{
-    fs::OpenOptions,
-    io::BufReader,
-    path::PathBuf,
-};
+use std::{fs::OpenOptions, io::BufReader, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 
