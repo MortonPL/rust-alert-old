@@ -5,7 +5,7 @@ Structures and utilities for C&C formats written in Rust.
 ## TODO
 
 - [x] CSF
-  - [ ] CSF <=> INI
+  - [x] CSF <=> INI
 - [x] INI
   - [ ] INIX?
 - [ ] MIX

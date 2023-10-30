@@ -1,5 +1,7 @@
-use std::io::{Read, Write};
-use std::mem::size_of;
+use std::{
+    io::{Read, Write},
+    mem::size_of,
+};
 
 use crate::core::csf::{CsfLabel, CsfString, CsfStringtable, Error};
 
@@ -188,9 +190,10 @@ impl CsfWriter {
             CsfPrefixes::STR_PREFIX
         };
         writer.write_all(prefix.as_bytes())?;
-        writer.write_all(&(string.value.len() as u32).to_le_bytes())?;
+        let utf16 = Self::encode_utf16_string(&string.value)?;
+        writer.write_all(&((utf16.len() / 2) as u32).to_le_bytes())?;
 
-        writer.write_all(&Self::encode_utf16_string(&string.value)?)?;
+        writer.write_all(&utf16)?;
 
         if is_wide {
             writer.write_all(&extra_len.to_le_bytes())?;

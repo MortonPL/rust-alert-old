@@ -32,7 +32,7 @@ enum LineParseResultEnum {
 }
 
 #[derive(Debug, Default)]
-struct IniReader {}
+pub struct IniReader {}
 
 impl IniReader {
     /// Read and parse an INI file from input.
@@ -100,7 +100,7 @@ impl IniReader {
     }
 }
 
-struct IniWriter {}
+pub struct IniWriter {}
 
 impl IniWriter {
     /// Write an INI file to output.

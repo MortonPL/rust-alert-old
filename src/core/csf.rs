@@ -3,6 +3,8 @@ use std::{
     string::{FromUtf16Error, FromUtf8Error},
 };
 
+use clap::ValueEnum;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -25,11 +27,11 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-/// CSF format version. 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// CSF format version.
+#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CsfVersionEnum {
-    /// Also includes BFME.
+    /// Also used in BFME.
     #[default]
     Cnc = 3,
     Nox = 2,
@@ -57,20 +59,29 @@ impl TryFrom<CsfVersionEnum> for u32 {
 
 /// CSF language ID used for localisation.
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CsfLanguageEnum {
     #[default]
+    /// English (United States)
     ENUS = 0,
+    /// English (United Kingdom)
     ENUK = 1,
+    /// German
     DE = 2,
+    /// French
     FR = 3,
+    /// Spanish
     ES = 4,
+    /// Italian
     IT = 5,
+    /// Japanese
     JA = 6,
     /// Joke WW entry - allegedly Jabberwockie (sic)
     XX = 7,
+    /// Korean
     KO = 8,
+    /// Chinese
     ZHCN = 9,
 }
 
@@ -102,6 +113,18 @@ impl TryFrom<CsfLanguageEnum> for u32 {
     }
 }
 
+pub struct CsfStringtableIter<'a> {
+    iter: std::collections::hash_map::Iter<'a, String, CsfLabel>,
+}
+
+impl<'a> Iterator for CsfStringtableIter<'a> {
+    type Item = (&'a String, &'a CsfLabel);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 /// A CSF file contains a header and a list of CSF labels.
 /// Labels are stored as a dictionary for easy manipulation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -117,6 +140,12 @@ pub struct CsfStringtable {
 }
 
 impl CsfStringtable {
+    pub fn iter(&self) -> CsfStringtableIter {
+        CsfStringtableIter {
+            iter: self.labels.iter(),
+        }
+    }
+
     /// Creates a new label from name and string, then adds it to the stringtable.
     /// Returns old label with the same name if overwritten, otherwise None.
     pub fn create_label(&mut self, label: impl Into<String>, string: impl Into<String>) {

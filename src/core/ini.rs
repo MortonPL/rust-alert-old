@@ -26,6 +26,19 @@ impl IniFile {
         }
     }
 
+    /// Sort all sections.
+    pub fn sort(&mut self) {
+        self.sections.sort_keys();
+    }
+
+    /// Sort all sections and their entries.
+    pub fn sort_all(&mut self) {
+        self.sort();
+        for (_, section) in self.sections.iter_mut() {
+            section.sort();
+        }
+    }
+
     /// Look up section by name.
     pub fn get_section(&self, name: impl Into<String>) -> Option<&IniSection> {
         self.sections.get(&name.into())
@@ -42,16 +55,24 @@ impl IniFile {
         self.sections.insert(section.name.clone(), section)
     }
 
-    // Insert an entry to a section in this file. If there is an entry with the same key,
-    /// it is replaced and the old value is returned.
+    /// Insert an entry to a section in this file. If there is an entry with the same key,
+    /// it is replaced and the old value is returned. If there is no section with set name,
+    /// it is created.
     pub fn add_to_section(
         &mut self,
         section: impl Into<String>,
         key: impl Into<String>,
         value: impl Into<String>,
     ) -> Option<IniEntry> {
-        let section = self.sections.get_mut(&section.into())?;
-        section.create_entry(key, value)
+        let name = section.into();
+        if let Some(section) = self.sections.get_mut(&name) {
+            section.create_entry(key, value)
+        } else {
+            let mut section = IniSection::new(name);
+            section.create_entry(key, value);
+            self.add_section(section);
+            None
+        }
     }
 
     /// Remove a section from file. Old value or None is returned.
@@ -97,6 +118,11 @@ impl IniSection {
         IniSectionIter {
             iter: self.entries.iter(),
         }
+    }
+
+    /// Sort all entries.
+    pub fn sort(&mut self) {
+        self.entries.sort_keys();
     }
 
     /// Look up entry by key.
@@ -148,13 +174,5 @@ impl IniEntry {
             key: key.into(),
             value: value.into(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test() {
-        assert!(true);
     }
 }
