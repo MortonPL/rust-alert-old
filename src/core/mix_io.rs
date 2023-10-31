@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::core::mix::{
-    Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags, MixIndexEntry, BLOWFISH_KEY_SIZE,
-    LMD_KEY_TD, LMD_KEY_TS,
+    LMDVersionEnum, LocalMixDatabaseInfo, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags,
+    MixIndexEntry, BLOWFISH_KEY_SIZE, LMD_KEY_TD, LMD_KEY_TS,
 };
 
 pub const LMD_PREFIX: &[u8; 32] = b"XCC by Olaf van der Spek\x1a\x04\x17\x27\x10\x19\x80\x00";
@@ -16,9 +16,11 @@ pub enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
     #[error("{0}")]
-    Utf8Error(#[from] std::str::Utf8Error),
+    Utf8Error(#[from] std::string::FromUtf8Error),
     #[error("Attempted to read the LMD, but the prefix didn't match")]
     InvalidLMDPrefix,
+    #[error("{0}")]
+    MIX(#[from] crate::core::mix::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -33,13 +35,13 @@ impl MixReader {
         mix.is_new_mix = is_new_mix;
         mix.flags = flags;
         mix.extra_flags = extra_flags;
+        mix.body_size = body_size;
 
-        let index: Vec<MixIndexEntry>;
-        if flags.contains(MixHeaderFlags::ENCRYPTION) {
-            index = Self::read_index_encrypted(reader, num_files, remaining)?;
+        let index = if flags.contains(MixHeaderFlags::ENCRYPTION) {
+            Self::read_index_encrypted(reader, num_files, remaining)
         } else {
-            index = Self::read_index(reader, num_files)?;
-        }
+            Self::read_index(reader, num_files)
+        }?;
 
         let (files, pos) = Self::read_bodies(reader, index)?;
         for file in files {
@@ -47,7 +49,7 @@ impl MixReader {
         }
 
         let residue = body_size - pos;
-        let mut buf: Vec<u8> = Vec::with_capacity(residue as usize);
+        let mut buf: Vec<u8> = vec![0u8; residue as usize];
         reader.read_exact(&mut buf)?;
         mix.residue = buf;
 
@@ -150,9 +152,9 @@ impl MixReader {
         let mut current = 0;
         for entry in index {
             let distance = entry.offset - current;
-            let mut residue = Vec::with_capacity(distance as usize);
+            let mut residue = vec![0u8; distance as usize];
             reader.read_exact(&mut residue)?;
-            let mut body = Vec::with_capacity(entry.size as usize);
+            let mut body = vec![0u8; entry.size as usize];
             reader.read_exact(&mut body)?;
 
             current += distance + entry.size;
@@ -175,22 +177,20 @@ impl MixReader {
         };
         if let Some(lmd) = mix.files.get(&key) {
             let reader: &mut dyn Read = &mut lmd.body.as_slice();
-            Self::read_lmd_header(reader)?;
+            mix.lmd = Some(Self::read_lmd_header(reader)?);
 
-            let mut buf: Vec<u8> = Vec::with_capacity(lmd.index.size as usize - LMD_HEADER_SIZE);
+            let mut buf: Vec<u8> = vec![0u8; lmd.index.size as usize - LMD_HEADER_SIZE];
             reader.read_exact(&mut buf)?;
-            buf.split(|x| *x == 0u8)
-                .map(|s| String::from_utf8(s.to_vec()))
-                .collect::<Result<Vec<String>>>()?
-                .iter()
+            String::from_utf8(buf)?
+                .split(|x| x == '\0')
                 .zip(mix.files.values_mut())
-                .for_each(|(name, file)| file.name = Some(*name));
+                .for_each(|(name, file)| file.name = Some(name.to_string()));
         }
         Ok(())
     }
 
     /// Read the LMD header.
-    fn read_lmd_header(reader: &mut dyn Read) -> Result<()> {
+    fn read_lmd_header(reader: &mut dyn Read) -> Result<LocalMixDatabaseInfo> {
         let mut buf = [0u8; LMD_PREFIX.len()];
         reader.read_exact(&mut buf)?;
         if buf.ne(LMD_PREFIX) {
@@ -198,15 +198,19 @@ impl MixReader {
         }
         let mut buf = [0u8; size_of::<u32>()];
         reader.read_exact(&mut buf)?;
-        let lmd_size = u32::from_le_bytes(buf);
+        let size = u32::from_le_bytes(buf);
         reader.read_exact(&mut buf)?; // Skip 4 bytes
         reader.read_exact(&mut buf)?; // Skip 4 bytes
         reader.read_exact(&mut buf)?;
-        let lmd_version = u32::from_le_bytes(buf);
+        let version: LMDVersionEnum = u32::from_le_bytes(buf).try_into()?;
         reader.read_exact(&mut buf)?;
         let num_names = u32::from_le_bytes(buf);
-        // TODO return something of value?
-        Ok(())
+        let lmd = LocalMixDatabaseInfo {
+            num_names,
+            version,
+            size,
+        };
+        Ok(lmd)
     }
 }
 

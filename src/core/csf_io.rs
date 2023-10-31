@@ -1,9 +1,28 @@
 use std::{
     io::{Read, Write},
     mem::size_of,
+    string::{FromUtf16Error, FromUtf8Error},
 };
 
-use crate::core::csf::{CsfLabel, CsfString, CsfStringtable, Error};
+use crate::core::csf::{CsfLabel, CsfString, CsfStringtable};
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
+    #[error("CSF prefix missing")]
+    CsfMissingPrefix,
+    #[error("LBL prefix missing")]
+    LblMissingPrefix,
+    #[error("RTS/WRTS prefix missing!")]
+    RtsOrWrtsMissingPrefix,
+    #[error("{0}")]
+    Utf8(#[from] FromUtf8Error),
+    #[error("{0}")]
+    Utf16(#[from] FromUtf16Error),
+    #[error("{0}")]
+    CSF(#[from] crate::core::csf::Error),
+}
 
 type Result<T> = std::result::Result<T, Error>;
 

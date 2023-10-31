@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    string::{FromUtf16Error, FromUtf8Error},
-};
+use std::collections::HashMap;
 
 use clap::ValueEnum;
 
@@ -13,16 +10,6 @@ pub enum Error {
     UnknownVersion { x: u32 },
     #[error("Unknown language number {x}")]
     UnknownLanguage { x: u32 },
-    #[error("CSF prefix missing")]
-    CsfMissingPrefix,
-    #[error("LBL prefix missing")]
-    LblMissingPrefix,
-    #[error("RTS/WRTS prefix missing!")]
-    RtsOrWrtsMissingPrefix,
-    #[error("{0}")]
-    Utf8(#[from] FromUtf8Error),
-    #[error("{0}")]
-    Utf16(#[from] FromUtf16Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -256,7 +243,7 @@ mod tests {
         let mut expected = CsfStringtable::default();
         expected
             .labels
-            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+            .insert(label.clone(), CsfLabel::new(&label, &string));
         let mut csf = CsfStringtable::default();
         csf.create_label(label, string);
 
@@ -272,9 +259,9 @@ mod tests {
         let mut expected = CsfStringtable::default();
         expected
             .labels
-            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+            .insert(label.clone(), CsfLabel::new(&label, &string));
         let mut csf = CsfStringtable::default();
-        csf.add_label(CsfLabel::new(label.clone(), string.clone()));
+        csf.add_label(CsfLabel::new(label, string));
 
         assert_eq!(csf, expected);
     }
@@ -287,7 +274,7 @@ mod tests {
         let expected = CsfStringtable::default();
         let mut csf = CsfStringtable::default();
         csf.labels
-            .insert(label.clone(), CsfLabel::new(label.clone(), "String"));
+            .insert(label.clone(), CsfLabel::new(&label, "String"));
         csf.remove_label(&label);
 
         assert_eq!(csf, expected);
@@ -301,7 +288,7 @@ mod tests {
 
         let mut csf = CsfStringtable::default();
         csf.labels
-            .insert(label.clone(), CsfLabel::new(label.clone(), string.clone()));
+            .insert(label.clone(), CsfLabel::new(&label, &string));
         let actual = csf.lookup(&label);
 
         assert!(actual.is_some());
@@ -320,9 +307,9 @@ mod tests {
         let expected = 2;
         let mut csf = CsfStringtable::default();
         csf.labels
-            .insert(label.clone(), CsfLabel::new(label.clone(), "String"));
+            .insert(label.clone(), CsfLabel::new(label, "String"));
         csf.labels
-            .insert(label2.clone(), CsfLabel::new(label2.clone(), "String2"));
+            .insert(label2.clone(), CsfLabel::new(label2, "String2"));
         let actual = csf.get_label_count();
 
         assert_eq!(actual, expected);
@@ -337,9 +324,9 @@ mod tests {
 
         let expected = 2;
         let mut csf = CsfStringtable::default();
-        let mut lbl = CsfLabel::new(label.clone(), string.clone());
+        let mut lbl = CsfLabel::new(&label, string);
         lbl.strings.push(string2.into());
-        csf.labels.insert(label.clone(), lbl);
+        csf.labels.insert(label, lbl);
         let actual = csf.get_string_count();
 
         assert_eq!(actual, expected);

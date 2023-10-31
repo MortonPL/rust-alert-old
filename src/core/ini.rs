@@ -144,11 +144,10 @@ impl IniSection {
         value: impl Into<String>,
     ) -> Option<IniEntry> {
         let key: String = key.into();
-        let key2 = key.clone();
         self.entries.insert(
-            key,
+            key.clone(),
             IniEntry {
-                key: key2,
+                key,
                 value: value.into(),
             },
         )

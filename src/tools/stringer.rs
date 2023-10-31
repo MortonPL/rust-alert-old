@@ -10,6 +10,22 @@ use rust_alert::core::{
     ini_io::{IniReader, IniWriter},
 };
 
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
+    #[error("{0}")]
+    CsfIO(#[from] rust_alert::core::csf_io::Error),
+    #[error("{0}")]
+    IniIO(#[from] rust_alert::core::ini_io::Error),
+    #[error("Label {0} contains no strings")]
+    EmptyLabel(String),
+    #[error("Label {0} is not in CATEGORY:NAME format, which is required")]
+    NoSplit(String),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Parser)]
 #[command(name = "stringer")]
 #[command(author = "MortonPL <bartm12@wp.pl>")]
@@ -19,6 +35,15 @@ struct Args {
     #[command(subcommand)]
     /// Mode of operation.
     command: Commands,
+}
+
+/// Modes of operation.
+#[derive(Subcommand)]
+enum Commands {
+    /// Extract stringtable contents to INI.
+    Extract(ExtractArgs),
+    /// Build stringtable from INI.
+    Build(BuildArgs),
 }
 
 #[derive(clap::Args)]
@@ -48,31 +73,6 @@ struct BuildArgs {
     #[arg(short, long, default_value_t = false)]
     sort: bool,
 }
-
-/// Modes of operation.
-#[derive(Subcommand)]
-enum Commands {
-    /// Extract stringtable contents to INI.
-    Extract(ExtractArgs),
-    /// Build stringtable from INI.
-    Build(BuildArgs),
-}
-
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("{0}")]
-    IO(#[from] std::io::Error),
-    #[error("{0}")]
-    CsfError(#[from] rust_alert::core::csf::Error),
-    #[error("{0}")]
-    IniError(#[from] rust_alert::core::ini_io::Error),
-    #[error("Label {0} contains no strings")]
-    EmptyLabel(String),
-    #[error("Label {0} is not in CATEGORY:NAME format, which is required")]
-    NoSplit(String),
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 fn extract_csf_to_ini(csf: CsfStringtable) -> Result<IniFile> {
     let mut ini = IniFile::default();
@@ -104,12 +104,12 @@ fn build_csf_from_ini(ini: IniFile) -> Result<CsfStringtable> {
 }
 
 fn extract(args: &ExtractArgs) -> Result<()> {
-    let mut reader = OpenOptions::new().read(true).open(args.input.clone())?;
+    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(args.output.clone())?;
+        .open(&args.output)?;
     let csf = CsfReader::read_file(&mut reader)?;
     let mut ini = extract_csf_to_ini(csf)?;
     if args.sort {
@@ -120,13 +120,13 @@ fn extract(args: &ExtractArgs) -> Result<()> {
 }
 
 fn build(args: &BuildArgs) -> Result<()> {
-    let reader = OpenOptions::new().read(true).open(args.input.clone())?;
+    let reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut reader = BufReader::new(reader);
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(args.output.clone())?;
+        .open(&args.output)?;
     let mut ini = IniReader::read_file(&mut reader)?;
     if args.sort {
         ini.sort_all()
@@ -142,7 +142,7 @@ fn main() -> Result<()> {
     let args = Args::parse_from(wild::args());
 
     match &args.command {
-        Commands::Extract(e) => extract(e),
-        Commands::Build(b) => build(b),
+        Commands::Extract(x) => extract(x),
+        Commands::Build(x) => build(x),
     }
 }
