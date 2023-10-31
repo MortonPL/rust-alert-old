@@ -48,7 +48,7 @@ enum Commands {
     Encrypt(EncryptArgs),
     /// Extract MIX contents to folder.
     Extract(ExtractArgs),
-    /// Inspect MIX information.
+    /// Inspect MIX file.
     Inspect(InspectArgs),
 }
 

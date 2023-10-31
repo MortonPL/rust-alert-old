@@ -40,21 +40,12 @@ struct Args {
 /// Modes of operation.
 #[derive(Subcommand)]
 enum Commands {
-    /// Extract stringtable contents to INI.
-    Extract(ExtractArgs),
-    /// Build stringtable from INI.
+    /// Build CSF from INI.
     Build(BuildArgs),
-}
-
-#[derive(clap::Args)]
-struct ExtractArgs {
-    /// Path to an input CSF file.
-    input: PathBuf,
-    /// Path to an output INI file.
-    output: PathBuf,
-    /// Sort all strings.
-    #[arg(short, long, default_value_t = false)]
-    sort: bool,
+    /// Extract CSF contents to INI.
+    Extract(ExtractArgs),
+    /// Inspect CSF file.
+    Inspect(InspectArgs),
 }
 
 #[derive(clap::Args)]
@@ -72,6 +63,23 @@ struct BuildArgs {
     /// Sort all strings.
     #[arg(short, long, default_value_t = false)]
     sort: bool,
+}
+
+#[derive(clap::Args)]
+struct ExtractArgs {
+    /// Path to an input CSF file.
+    input: PathBuf,
+    /// Path to an output INI file.
+    output: PathBuf,
+    /// Sort all strings.
+    #[arg(short, long, default_value_t = false)]
+    sort: bool,
+}
+
+#[derive(clap::Args)]
+struct InspectArgs {
+    /// Path to an input CSF file.
+    input: PathBuf,
 }
 
 fn extract_csf_to_ini(csf: CsfStringtable) -> Result<IniFile> {
@@ -103,22 +111,6 @@ fn build_csf_from_ini(ini: IniFile) -> Result<CsfStringtable> {
     Ok(csf)
 }
 
-fn extract(args: &ExtractArgs) -> Result<()> {
-    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mut writer = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&args.output)?;
-    let csf = CsfReader::read_file(&mut reader)?;
-    let mut ini = extract_csf_to_ini(csf)?;
-    if args.sort {
-        ini.sort_all();
-    }
-    IniWriter::write_file(&ini, &mut writer)?;
-    Ok(())
-}
-
 fn build(args: &BuildArgs) -> Result<()> {
     let reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut reader = BufReader::new(reader);
@@ -138,11 +130,40 @@ fn build(args: &BuildArgs) -> Result<()> {
     Ok(())
 }
 
+fn extract(args: &ExtractArgs) -> Result<()> {
+    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
+    let mut writer = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&args.output)?;
+    let csf = CsfReader::read_file(&mut reader)?;
+    let mut ini = extract_csf_to_ini(csf)?;
+    if args.sort {
+        ini.sort_all();
+    }
+    IniWriter::write_file(&ini, &mut writer)?;
+    Ok(())
+}
+
+fn inspect(args: &InspectArgs) -> Result<()> {
+    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
+    let csf = CsfReader::read_file(&mut reader)?;
+    println!("Version:      {:?}", csf.version);
+    println!("Language:     {:?}", csf.language);
+    println!("Extra data:   {:X}", csf.extra);
+    println!("# of labels:  {:?}", csf.get_label_count());
+    println!("# of strings: {:?}", csf.get_string_count());
+    println!("Contains WSTRs: {:?}", csf.labels.values().any(|l| l.get_first().is_some_and(|s| !s.extra_value.is_empty())));
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse_from(wild::args());
 
     match &args.command {
-        Commands::Extract(x) => extract(x),
         Commands::Build(x) => build(x),
+        Commands::Extract(x) => extract(x),
+        Commands::Inspect(x) => inspect(x),
     }
 }
