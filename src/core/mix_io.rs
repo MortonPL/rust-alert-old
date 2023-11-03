@@ -1,15 +1,37 @@
 use std::{
     io::{Read, Write},
     mem::size_of,
+    str::FromStr,
 };
+
+use blowfish::{
+    cipher::{
+        generic_array::GenericArray, typenum::UInt, typenum::UTerm, typenum::B0, typenum::B1,
+        BlockDecrypt,
+    },
+    Blowfish,
+};
+use num_bigint::BigUint;
 
 use crate::core::mix::{
-    LMDVersionEnum, LocalMixDatabaseInfo, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags,
-    MixIndexEntry, BLOWFISH_KEY_SIZE, LMD_KEY_TD, LMD_KEY_TS,
+    BlowfishKey, LMDVersionEnum, LocalMixDatabaseInfo, Mix, MixFileEntry, MixHeaderExtraFlags,
+    MixHeaderFlags, MixIndexEntry, BLOWFISH_KEY_SIZE, LMD_KEY_TD, LMD_KEY_TS,
 };
 
+/// Prefix of every LMD header.
 pub const LMD_PREFIX: &[u8; 32] = b"XCC by Olaf van der Spek\x1a\x04\x17\x27\x10\x19\x80\x00";
+/// Size of the entire LMD header.
 pub const LMD_HEADER_SIZE: usize = LMD_PREFIX.len() + 20;
+pub const BLOWFISH_KEY_CHUNK_SIZE: usize = 40;
+pub const ENCRYPTED_BLOWFISH_KEY_SIZE: usize = 80;
+pub const BLOWFISH_BLOCK_SIZE: usize = 8;
+/// Exponent of Westwood's "fast"/RSA key.
+pub const EXPONENT: &[u8] = &[1, 0, 1];
+/// Modulus of Westwood's "fast"/RSA key.
+pub const MODULUS: &[u8] = &[
+    21, 127, 67, 170, 61, 79, 251, 209, 230, 193, 176, 248, 106, 14, 221, 171, 74, 176, 130, 102,
+    250, 84, 170, 232, 162, 63, 113, 81, 214, 96, 81, 86, 228, 252, 57, 109, 8, 218, 188, 81,
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -21,6 +43,8 @@ pub enum Error {
     InvalidLMDPrefix,
     #[error("{0}")]
     MIX(#[from] crate::core::mix::Error),
+    #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
+    WrongBlowfishSize(usize),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -28,17 +52,18 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct MixReader {}
 
 impl MixReader {
-    pub fn read_file(reader: &mut dyn Read) -> Result<Mix> {
+    pub fn read_file(reader: &mut dyn Read, force_new_format: bool) -> Result<Mix> {
         let mut mix = Mix::default();
-        let (is_new_mix, extra_flags, flags, num_files, body_size, remaining) =
-            Self::read_header(reader)?;
+        let (is_new_mix, extra_flags, flags, blowfish, num_files, body_size, remaining) =
+            Self::read_header(reader, force_new_format)?;
         mix.is_new_mix = is_new_mix;
         mix.flags = flags;
         mix.extra_flags = extra_flags;
         mix.body_size = body_size;
 
-        let index = if flags.contains(MixHeaderFlags::ENCRYPTION) {
-            Self::read_index_encrypted(reader, num_files, remaining)
+        let index = if let Some((key, cipher)) = blowfish {
+            mix.blowfish_key = Some(key);
+            Self::read_index_encrypted(reader, num_files, cipher, remaining)
         } else {
             Self::read_index(reader, num_files)
         }?;
@@ -63,27 +88,46 @@ impl MixReader {
     /// Read the MIX header.
     pub fn read_header(
         reader: &mut dyn Read,
-    ) -> Result<(bool, MixHeaderExtraFlags, MixHeaderFlags, u16, u32, [u8; 2])> {
+        force_new_format: bool,
+    ) -> Result<(
+        bool,
+        MixHeaderExtraFlags,
+        MixHeaderFlags,
+        Option<(BlowfishKey, Blowfish)>,
+        u16,
+        u32,
+        [u8; 2],
+    )> {
         let mut buf = [0u8; size_of::<u16>()];
         reader.read_exact(&mut buf)?;
         let extra_flags = u16::from_le_bytes(buf);
-        let new_format = extra_flags == 0;
+        let new_format = force_new_format || (extra_flags == 0);
 
         let mut flags = MixHeaderFlags::default();
+        let mut blowfish: Option<(BlowfishKey, Blowfish)> = None;
         let num_files: u16;
         let body_size: u32;
-        let remaining = [0u8; 2];
+        let mut remaining = [0u8; 2];
 
         if new_format {
             // New MIX format (>=RA).
             reader.read_exact(&mut buf)?;
             flags = u16::from_le_bytes(buf).into();
-
             if flags.contains(MixHeaderFlags::ENCRYPTION) {
                 // Decrypt and read header.
-                let mut buf = [0u8; BLOWFISH_KEY_SIZE];
+                let key = Self::read_blowfish(reader)?;
+                let mut cipher = Blowfish::bc_init_state();
+                cipher.bc_expand_key(&key);
+                let mut buf = [0u8; 8];
                 reader.read_exact(&mut buf)?;
-                todo!() // TODO
+                let mut block = buf.into();
+                cipher.decrypt_block(&mut block);
+                let buf = block.as_slice();
+                blowfish = Some((key, cipher));
+
+                num_files = u16::from_le_bytes(buf[0..2].try_into().unwrap());
+                body_size = u32::from_le_bytes(buf[2..6].try_into().unwrap());
+                remaining = buf[6..8].try_into().unwrap();
             } else {
                 // Just read header.
                 reader.read_exact(&mut buf)?;
@@ -104,6 +148,7 @@ impl MixReader {
             new_format,
             extra_flags.into(),
             flags,
+            blowfish,
             num_files,
             body_size,
             remaining,
@@ -121,13 +166,25 @@ impl MixReader {
     pub fn read_index_encrypted(
         reader: &mut dyn Read,
         num_files: u16,
+        cipher: Blowfish,
         remaining: [u8; 2],
     ) -> Result<Vec<MixIndexEntry>> {
-        for _ in 0..num_files {
-            todo!(); // TODO
-        }
+        let size = num_files as usize * size_of::<MixIndexEntry>() - 2;
+        let size = size.next_multiple_of(BLOWFISH_BLOCK_SIZE);
+        let mut buf = vec![0u8; size];
+        reader.read_exact(&mut buf)?;
 
-        todo!(); // TODO
+        let mut blocks: Vec<GenericArray<u8, _>> = buf
+            .chunks_exact(BLOWFISH_BLOCK_SIZE)
+            .map(|c| GenericArray::from_slice(c).to_owned())
+            .collect();
+        cipher.decrypt_blocks(blocks.as_mut_slice());
+        let mut buf2 = blocks.concat();
+        let mut buf = remaining.to_vec();
+        buf.append(&mut buf2);
+        let mut decrypted_reader: &mut dyn Read = &mut buf.as_slice();
+
+        Self::read_index(&mut decrypted_reader, num_files)
     }
 
     /// Read a MIX index entry.
@@ -212,8 +269,60 @@ impl MixReader {
         };
         Ok(lmd)
     }
+
+    /// Read the encrypted blowfish key and decrypt it using a handmade RSA algorithm.
+    fn read_blowfish(reader: &mut dyn Read) -> Result<BlowfishKey> {
+        let mut buf = [0u8; ENCRYPTED_BLOWFISH_KEY_SIZE];
+        reader.read_exact(&mut buf)?;
+        let exponent = BigUint::from_bytes_le(EXPONENT);
+        let modulus = BigUint::from_bytes_le(MODULUS);
+        let blowfish: Vec<u8> = buf
+            .chunks_exact(BLOWFISH_KEY_CHUNK_SIZE)
+            .map(|x| {
+                BigUint::from_bytes_le(x)
+                    .modpow(&exponent, &modulus)
+                    .to_bytes_le()
+            })
+            .flatten()
+            .collect();
+        let len = blowfish.len();
+        blowfish.try_into().or(Err(Error::WrongBlowfishSize(len)))
+    }
 }
 
 pub struct MixWriter {}
 
-impl MixWriter {}
+impl MixWriter {
+    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
+        Self::write_header(writer, mix, force_new_format)?;
+
+        todo!();
+        // prep_lmd();
+        // write_index();
+        // write_bodies();
+    }
+
+    pub fn write_header(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
+        let new_format = force_new_format || mix.is_new_mix;
+
+        if new_format {
+            let extra_flags: u16 = mix.extra_flags.into();
+            writer.write_all(&extra_flags.to_le_bytes())?;
+            let flags: u16 = mix.flags.into();
+            writer.write_all(&flags.to_le_bytes())?;
+            // New MIX format (>=RA).
+            if mix.flags.contains(MixHeaderFlags::ENCRYPTION) {
+                // Encrypt and write header.
+            } else {
+                // Just write header.
+                writer.write_all(&(mix.files.len() as u16).to_le_bytes())?;
+                writer.write_all(&mix.body_size.to_le_bytes())?;
+            }
+        } else {
+            // Old MIX format (TD).
+            writer.write_all(&(mix.files.len() as u16).to_le_bytes())?;
+            writer.write_all(&mix.body_size.to_le_bytes())?;
+        }
+        Ok(())
+    }
+}

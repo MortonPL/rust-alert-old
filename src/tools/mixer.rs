@@ -7,15 +7,20 @@ use std::{
 use clap::{Parser, Subcommand};
 
 use rust_alert::core::{
-    mix::{Mix, MixHeaderFlags},
+    mix::{Mix, MixHeaderFlags, LocalMixDatabaseInfo, BlowfishKey},
     mix_io::{MixReader, MixWriter},
 };
-use rust_alert::printoptionln;
+use rust_alert::{
+    printoptionln,
+    printoptionmapln,
+};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
+    #[error("{0}")]
+    Mix(#[from] rust_alert::core::mix::Error),
     #[error("{0}")]
     MixIO(#[from] rust_alert::core::mix_io::Error),
 }
@@ -67,6 +72,12 @@ struct BuildArgs {
     /// Append checksum to the MIX file.
     #[arg(short, long, default_value_t = false)]
     checksum: bool,
+    /// Build LMD for the MIX file.
+    #[arg(short, long, default_value_t = false)]
+    lmd: bool,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -82,6 +93,9 @@ struct ChecksumArgs {
 struct CompactArgs {
     /// Path to an input MIX file.
     input: PathBuf,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -103,6 +117,9 @@ struct CorruptArgs {
     /// Corrupt extra flags in the MIX header.
     #[arg(long, default_value_t = false)]
     header_corrupt_flags_extra: bool,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -126,6 +143,9 @@ struct ExtractArgs {
     /// Do not print any messages.
     #[arg(short, long, default_value_t = false)]
     quiet: bool,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -138,9 +158,26 @@ struct InspectArgs {
     /// Do not print the file index.
     #[arg(long, default_value_t = false)]
     no_index: bool,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 fn build(args: &BuildArgs) -> Result<()> {
+    let mut writer = OpenOptions::new().write(true).create(true).truncate(true).open(&args.output)?;
+    let paths = std::fs::read_dir(&args.input)?;
+    let mut mix = Mix::default();
+    for res in paths {
+        match res {
+            Ok(path) => mix.force_file_path(path.path(), false)?,
+            Err(e) => Err(e)?,
+        }
+    }
+    if args.lmd {
+        mix.lmd = Some(LocalMixDatabaseInfo::default());
+    }
+    mix.recalc();
+    MixWriter::write_file(&mut writer, &mix, args.new_mix)?;
     Ok(())
 }
 
@@ -162,7 +199,7 @@ fn encrypt(args: &EncryptArgs) -> Result<()> {
 
 fn extract(args: &ExtractArgs) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mix = MixReader::read_file(&mut reader)?;
+    let mix = MixReader::read_file(&mut reader, args.new_mix)?;
     std::fs::create_dir_all(&args.output)?;
     for file in mix.files.values() {
         let filename = file.get_name();
@@ -176,7 +213,7 @@ fn extract(args: &ExtractArgs) -> Result<()> {
 
 fn inspect(args: &InspectArgs) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mix = MixReader::read_file(&mut reader)?;
+    let mix = MixReader::read_file(&mut reader, args.new_mix)?;
     if !args.no_header {
         println!(
             "Mix type:           {}",
@@ -194,7 +231,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
             "Encrypted:          {:?}",
             mix.flags.contains(MixHeaderFlags::ENCRYPTION)
         );
-        printoptionln!("Blowfish key:       {:x?}", mix.blowfish_key);
+        printoptionmapln!("Blowfish key:       {:x?}", mix.blowfish_key, |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat());
         println!(
             "Checksum:           {:?}",
             mix.flags.contains(MixHeaderFlags::CHECKSUM)
@@ -213,8 +250,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
 
 fn main() -> Result<()> {
     let args = Args::parse_from(wild::args());
-
-    //let args = Args{ command: Commands::Inspect(InspectArgs{ input: "expandmd14.mix".into()}) };// DEBUG
+    //let args = Args{ command: Commands::Inspect(InspectArgs{ input: "enc.mix".into(), no_header: false, no_index: false, new_mix: false}) };// DEBUG
 
     match &args.command {
         Commands::Build(x) => build(x),
