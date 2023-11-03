@@ -8,10 +8,10 @@ Structures and utilities for C&C formats written in Rust.
   - [x] CSF <=> INI
 - [x] INI
   - [ ] INIX?
-- [ ] MIX
-  - [ ] Blowfish/RSA
+- [x] MIX
+  - [x] Blowfish/RSA
   - [x] CRC
-  - [ ] LMD
+  - [x] LMD
   - [ ] Checksum
 - [ ] PAL
   - [ ] PAL <=> PNG
