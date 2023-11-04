@@ -1,10 +1,16 @@
 use indexmap::IndexMap;
 
+/// An INI file is general purpose, human readable, loosely standarised configuration format.
+/// An INI file organises data into named sections that contain key-value pairs (entries).
+/// Sections and entries can be looked-up and their order is maintained.
+/// Each section has a unique name.
 #[derive(Debug, Default, PartialEq)]
 pub struct IniFile {
+    /// Map of sections indexed by their names.
     sections: IndexMap<String, IniSection>,
 }
 
+/// Iterator over INI sections.
 pub struct IniFileIter<'a> {
     iter: indexmap::map::Iter<'a, String, IniSection>,
 }
@@ -17,8 +23,6 @@ impl<'a> Iterator for IniFileIter<'a> {
     }
 }
 
-/// An INI file organises data into named sections that contain key-value pairs (entries).
-/// Sections and entries can be looked-up and their order is maintained.
 impl IniFile {
     pub fn iter(&self) -> IniFileIter {
         IniFileIter {
@@ -82,13 +86,14 @@ impl IniFile {
 }
 
 /// An INI section is a representation of a named object, described by a collection
-/// of key-value pairs. Each section has a unique name.
+/// of key-value pairs.
 #[derive(Debug, Default, PartialEq)]
 pub struct IniSection {
     name: String,
     entries: IndexMap<String, IniEntry>,
 }
 
+/// Iterator over section entries.
 pub struct IniSectionIter<'a> {
     iter: indexmap::map::Iter<'a, String, IniEntry>,
 }

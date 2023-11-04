@@ -26,16 +26,16 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct CsfReader {}
-pub struct CsfWriter {}
-
 struct CsfPrefixes {}
 impl CsfPrefixes {
-    const CSF_PREFIX: &str = " FSC";
-    const LBL_PREFIX: &str = " LBL";
-    const STR_PREFIX: &str = " RTS";
-    const WSTR_PREFIX: &str = "WRTS";
+    const CSF_PREFIX: &[u8] = b" FSC";
+    const LBL_PREFIX: &[u8] = b" LBL";
+    const STR_PREFIX: &[u8] = b" RTS";
+    const WSTR_PREFIX: &[u8] = b"WRTS";
 }
+
+/// Provides static methods for reading CSF files.
+pub struct CsfReader {}
 
 impl CsfReader {
     /// Create a CSF file struct from input.
@@ -43,15 +43,12 @@ impl CsfReader {
         // Read mandatory prefix.
         let mut buf = [0u8; size_of::<u32>()];
         reader.read_exact(&mut buf)?;
-        if !std::str::from_utf8(&buf)
-            .unwrap()
-            .eq(CsfPrefixes::CSF_PREFIX)
-        {
+        if !buf.eq(CsfPrefixes::CSF_PREFIX) {
             return Err(Error::CsfMissingPrefix);
         };
-
+        // Read file header.
         let (mut csf, num_labels) = Self::read_csf_header(reader)?;
-
+        // Read all labels.
         csf.labels.reserve(num_labels as usize);
         for _ in 0..num_labels {
             csf.add_label(Self::read_label(reader)?);
@@ -88,27 +85,20 @@ impl CsfReader {
     pub fn read_label(reader: &mut dyn Read) -> Result<CsfLabel> {
         let mut label = CsfLabel::default();
         let mut buf = [0u8; size_of::<u32>()];
-
         // Read mandatory prefix.
         reader.read_exact(&mut buf)?;
-        if !std::str::from_utf8(&buf)
-            .unwrap()
-            .eq(CsfPrefixes::LBL_PREFIX)
-        {
+        if !buf.eq(CsfPrefixes::LBL_PREFIX) {
             return Err(Error::LblMissingPrefix);
         };
-
         // Read header values.
         reader.read_exact(&mut buf)?;
         let num_strings = u32::from_le_bytes(buf) as usize;
         reader.read_exact(&mut buf)?;
         let label_len = u32::from_le_bytes(buf) as usize;
-
         // Read label name.
         let mut buf = vec![0u8; label_len];
         reader.read_exact(&mut buf)?;
         label.name = String::from_utf8(buf)?;
-
         // Read list of strings.
         label.strings.reserve(num_strings);
         for _ in 0..num_strings {
@@ -122,24 +112,21 @@ impl CsfReader {
     pub fn read_string(reader: &mut dyn Read) -> Result<CsfString> {
         let mut string = CsfString::default();
         let mut buf = [0u8; size_of::<u32>()];
-
         // Read mandatory prefix.
         reader.read_exact(&mut buf)?;
-        let is_wide = match std::str::from_utf8(&buf) {
-            Ok(CsfPrefixes::STR_PREFIX) => Ok(false),
-            Ok(CsfPrefixes::WSTR_PREFIX) => Ok(true),
+        let has_extra = match buf.as_slice() {
+            CsfPrefixes::STR_PREFIX => Ok(false),
+            CsfPrefixes::WSTR_PREFIX => Ok(true),
             _ => Err(Error::RtsOrWrtsMissingPrefix),
         }?;
-
+        // Decode string.
         reader.read_exact(&mut buf)?;
         let len = u32::from_le_bytes(buf) as usize;
         string.value = Self::decode_utf16_string(reader, len)?;
-
         // Read extra data.
-        if is_wide {
+        if has_extra {
             reader.read_exact(&mut buf)?;
             let extra_len = u32::from_le_bytes(buf) as usize;
-
             let mut buf = vec![0u8; extra_len];
             reader.read_exact(&mut buf)?;
             string.extra_value = String::from_utf8(buf)?;
@@ -161,12 +148,14 @@ impl CsfReader {
     }
 }
 
+/// Provides static methods for writing CSF files.
+pub struct CsfWriter {}
+
 impl CsfWriter {
     /// Write a CSF file struct to output.
     pub fn write_file(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
-        writer.write_all(CsfPrefixes::CSF_PREFIX.as_bytes())?;
+        writer.write_all(CsfPrefixes::CSF_PREFIX)?;
         Self::write_csf_header(csf, writer)?;
-
         for label in csf.labels.values() {
             CsfWriter::write_label(label, writer)?;
         }
@@ -187,11 +176,12 @@ impl CsfWriter {
 
     /// Write a CSF label struct to output.
     pub fn write_label(label: &CsfLabel, writer: &mut dyn Write) -> Result<()> {
-        writer.write_all(CsfPrefixes::LBL_PREFIX.as_bytes())?;
+        // Write label info.
+        writer.write_all(CsfPrefixes::LBL_PREFIX)?;
         writer.write_all(&(label.strings.len() as u32).to_le_bytes())?;
         writer.write_all(&(label.name.len() as u32).to_le_bytes())?;
         writer.write_all(label.name.as_bytes())?;
-
+        // Write strings.
         for string in &label.strings {
             CsfWriter::write_string(string, writer)?;
         }
@@ -202,19 +192,19 @@ impl CsfWriter {
     /// Write a CSF string struct to output.
     pub fn write_string(string: &CsfString, writer: &mut dyn Write) -> Result<()> {
         let extra_len = string.extra_value.len() as u32;
-        let is_wide = extra_len > 0;
-        let prefix = if is_wide {
+        let has_extra = extra_len > 0;
+        let prefix = if has_extra {
             CsfPrefixes::WSTR_PREFIX
         } else {
             CsfPrefixes::STR_PREFIX
         };
-        writer.write_all(prefix.as_bytes())?;
+        // Write string info.
+        writer.write_all(prefix)?;
         let utf16 = Self::encode_utf16_string(&string.value)?;
         writer.write_all(&((utf16.len() / 2) as u32).to_le_bytes())?;
-
+        // Write string data.
         writer.write_all(&utf16)?;
-
-        if is_wide {
+        if has_extra {
             writer.write_all(&extra_len.to_le_bytes())?;
             writer.write_all(string.extra_value.as_bytes())?;
         }
@@ -222,6 +212,7 @@ impl CsfWriter {
         Ok(())
     }
 
+    /// Encode (by bitwise negation) and write a UTF-16 string.
     fn encode_utf16_string(string: &str) -> Result<Vec<u8>> {
         Ok(string
             .encode_utf16()

@@ -1,19 +1,16 @@
 // MIX tool.
 use std::{
     fs::{write, OpenOptions},
-    path::PathBuf,
+    path::PathBuf, io::Read,
 };
 
 use clap::{Parser, Subcommand};
 
 use rust_alert::core::{
-    mix::{Mix, MixHeaderFlags, LocalMixDatabaseInfo, BlowfishKey},
+    mix::{BlowfishKey, LocalMixDatabaseInfo, Mix, MixHeaderFlags},
     mix_io::{MixReader, MixWriter},
 };
-use rust_alert::{
-    printoptionln,
-    printoptionmapln,
-};
+use rust_alert::{printoptionln, printoptionmapln};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -146,6 +143,9 @@ struct ExtractArgs {
     /// Force new mix format, useful if extra flags are non-0.
     #[arg(long, default_value_t = false)]
     new_mix: bool,
+    /// Recursively extract MIXes from MIXes to subfolders.
+    #[arg(short, long, default_value_t = false)]
+    recursive: bool,
 }
 
 #[derive(clap::Args)]
@@ -164,7 +164,11 @@ struct InspectArgs {
 }
 
 fn build(args: &BuildArgs) -> Result<()> {
-    let mut writer = OpenOptions::new().write(true).create(true).truncate(true).open(&args.output)?;
+    let mut writer = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&args.output)?;
     let paths = std::fs::read_dir(&args.input)?;
     let mut mix = Mix::default();
     for res in paths {
@@ -199,15 +203,27 @@ fn encrypt(args: &EncryptArgs) -> Result<()> {
 
 fn extract(args: &ExtractArgs) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mix = MixReader::read_file(&mut reader, args.new_mix)?;
-    std::fs::create_dir_all(&args.output)?;
+    extract_inner(&mut reader, &args.output, args)?;
+
+    Ok(())
+}
+
+fn extract_inner(reader: &mut dyn Read, output_dir: &PathBuf, args: &ExtractArgs) -> Result<()> {
+    let mix = MixReader::read_file(reader, args.new_mix)?;
+    std::fs::create_dir_all(output_dir)?;
     for file in mix.files.values() {
         let filename = file.get_name();
         if !args.quiet {
             println!("{}, {} bytes", filename, file.index.size);
         }
-        write(args.output.join(filename), &file.body)?;
+        if args.recursive && filename.ends_with(".mix") {
+            let mix_reader: &mut dyn Read = &mut file.body.as_slice();
+            extract_inner(mix_reader, &output_dir.join(filename), args)?;
+        } else {
+            write(output_dir.join(filename), &file.body)?;
+        }
     }
+
     Ok(())
 }
 
@@ -231,7 +247,11 @@ fn inspect(args: &InspectArgs) -> Result<()> {
             "Encrypted:          {:?}",
             mix.flags.contains(MixHeaderFlags::ENCRYPTION)
         );
-        printoptionmapln!("Blowfish key:       {:x?}", mix.blowfish_key, |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat());
+        printoptionmapln!(
+            "Blowfish key:       {:x?}",
+            mix.blowfish_key,
+            |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat()
+        );
         println!(
             "Checksum:           {:?}",
             mix.flags.contains(MixHeaderFlags::CHECKSUM)

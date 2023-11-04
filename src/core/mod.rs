@@ -6,6 +6,9 @@ pub mod csf;
 /// CSF (stringtable) I/O.
 pub mod csf_io;
 
+/// General data definitions used by other modules.
+pub mod general;
+
 /// INI structures and manipulation.
 pub mod ini;
 /// INI  I/O.

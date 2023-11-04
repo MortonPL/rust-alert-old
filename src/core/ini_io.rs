@@ -31,6 +31,7 @@ enum LineParseResultEnum {
     Empty,
 }
 
+/// Provides static methods for reading INI files.
 #[derive(Debug, Default)]
 pub struct IniReader {}
 
@@ -92,7 +93,7 @@ impl IniReader {
             }
             // key=value=error
             (_, _, Some(_)) => Err(Error::TooManyValues(row)),
-            // no equals sing
+            // no equals sign
             (Some(_), None, _) => Ok(LineParseResultEnum::Empty),
             // other error
             _ => Err(Error::Other(row)),
@@ -100,6 +101,7 @@ impl IniReader {
     }
 }
 
+/// Provides static methods for writing INI files.
 pub struct IniWriter {}
 
 impl IniWriter {

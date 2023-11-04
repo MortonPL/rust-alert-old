@@ -14,14 +14,16 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-/// CSF format version.
+/// CSF format version. "Nothing is known about the actual difference between the versions."
+/// \[[source](https://modenc.renegadeprojects.com/CSF_File_Format#The_Header)\]
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CsfVersionEnum {
-    /// Also used in BFME.
+    /// Nox (2000), by Westwood studios.
+    Nox = 2,
+    /// All C&C games with CSF support (so RA2/YR) and Lord of the Rings: Battle for the Middile-earth.
     #[default]
     Cnc = 3,
-    Nox = 2,
 }
 
 impl TryFrom<u32> for CsfVersionEnum {
@@ -49,8 +51,8 @@ impl TryFrom<CsfVersionEnum> for u32 {
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 #[repr(u32)]
 pub enum CsfLanguageEnum {
-    #[default]
     /// English (United States)
+    #[default]
     ENUS = 0,
     /// English (United Kingdom)
     ENUK = 1,
@@ -100,6 +102,7 @@ impl TryFrom<CsfLanguageEnum> for u32 {
     }
 }
 
+/// Iterator over CsfStringtable labels.
 pub struct CsfStringtableIter<'a> {
     iter: std::collections::hash_map::Iter<'a, String, CsfLabel>,
 }
@@ -172,10 +175,10 @@ impl CsfStringtable {
 }
 
 /// A CSF label contains a name and a collection of CSF strings.
-/// Every label in vanilla game files contains only one string.
+/// Every label in vanilla RA2/YR files contains only one string.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CsfLabel {
-    /// Name of the label. Game rules and triggers look up this value.
+    /// Name of the label. Game rules, GUI and triggers look up this value.
     pub name: String,
     /// List of CSF strings associated with the label.
     pub strings: Vec<CsfString>,
@@ -196,7 +199,7 @@ impl CsfLabel {
 }
 
 /// A CSF string contains a LE UTF-16 string. There are two types of CSF strings:
-/// normal (prefix RTS) and wide (prefix WRTS) which can contain an extra ASCII string.
+/// normal (prefix RTS) and with extra value (prefix WRTS) which can contain an additional ASCII string.
 /// All vanilla game strings are normal.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CsfString {

@@ -154,7 +154,12 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     println!("Extra data:   {:X}", csf.extra);
     println!("# of labels:  {:?}", csf.get_label_count());
     println!("# of strings: {:?}", csf.get_string_count());
-    println!("Contains WSTRs: {:?}", csf.labels.values().any(|l| l.get_first().is_some_and(|s| !s.extra_value.is_empty())));
+    println!(
+        "Contains WSTRs: {:?}",
+        csf.labels
+            .values()
+            .any(|l| l.get_first().is_some_and(|s| !s.extra_value.is_empty()))
+    );
     Ok(())
 }
 

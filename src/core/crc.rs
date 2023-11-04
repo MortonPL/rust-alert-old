@@ -1,62 +1,61 @@
-use crc32fast;
 use std::mem::size_of;
 
-/// Enum representing first & second generation C&C games.
-pub enum GameEnum {
-    TD,
-    RA,
-    TS,
-    YR,
-}
+use crc32fast;
+
+use crate::core::general::GameEnum;
 
 /// General CRC function that picks implementation depending on game version.
 pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
     match game {
         GameEnum::TD => crc_td(value),
         GameEnum::RA => crc_td(value),
-        _ => crc_ts(value),
+        GameEnum::TS => crc_ts(value),
+        GameEnum::FS => crc_ts(value),
+        GameEnum::RA2 => crc_ts(value),
+        GameEnum::YR => crc_ts(value),
     }
 }
 
-/// "CRC" function used in TD and RA1.
+/// "CRC" function used in TD and RA.
 pub fn crc_td(string: impl AsRef<str>) -> i32 {
     let mut string_upper = string.as_ref().to_uppercase().into_bytes();
     if string_upper.is_empty() {
         return 0;
     }
-    // Rust at its finest
+    // Pad the string so that its length is a multiple of 4.
     let missing = match string_upper.len() % 4 {
         1 => 3,
         3 => 1,
         x => x,
     };
-    // Pad the string so that its length is a multiple of 4.
     string_upper.extend_from_slice(&[0u8, 0, 0, 0][0..missing]);
-
+    // Algorithm proper; Read 32bit chunks, rotate and sum.
     string_upper
-        .chunks(size_of::<u32>())
+        .chunks_exact(size_of::<u32>())
         .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
         .fold(0u32, |acc, x| x.wrapping_add(acc.rotate_left(1))) as i32
 }
 
-/// CRC function used in TS and YR.
+/// CRC function used in TS, FS, RA2 and YR.
 pub fn crc_ts(string: impl AsRef<str>) -> i32 {
     let mut string_upper = string.as_ref().to_uppercase();
     let len = string_upper.len();
     if len == 0 {
         return 0;
     }
-    let remainder = len % 4;
     // Magic WW padding.
+    let remainder = len % 4;
     if remainder != 0 {
+        // First pad with the pad size.
         string_upper.push(remainder as u8 as char);
-        // Beginning of the last 4-byte chunk.
+        // Then pad with the beginning of the last 4-byte chunk.
         let padding_idx = (len >> 2) << 2;
         let padding = string_upper.chars().nth(padding_idx).unwrap();
         for _ in 0..(3 - remainder) {
             string_upper.push(padding);
         }
     }
+    // Standard CRC32.
     crc32fast::hash(string_upper.as_bytes()) as i32
 }
 
@@ -105,12 +104,20 @@ mod tests {
             crc("cache.mix", GameEnum::TD),
             crc("cache.mix", GameEnum::RA)
         );
-        // TS and YR use the same implementation.
+        // TS/FS and RA2/YR use the same implementation.
         assert_eq!(
-            crc("cache.mix", GameEnum::TD),
-            crc("cache.mix", GameEnum::RA)
+            crc("cache.mix", GameEnum::TS),
+            crc("cache.mix", GameEnum::FS),
         );
-        // TD/RA and TS/YR use different implementations.
+        assert_eq!(
+            crc("cache.mix", GameEnum::RA2),
+            crc("cache.mix", GameEnum::YR),
+        );
+        assert_eq!(
+            crc("cache.mix", GameEnum::FS),
+            crc("cache.mix", GameEnum::YR),
+        );
+        // TD/RA and TS/FS/RA2/YR use different implementations.
         assert_ne!(
             crc("cache.mix", GameEnum::TD),
             crc("cache.mix", GameEnum::TS)
