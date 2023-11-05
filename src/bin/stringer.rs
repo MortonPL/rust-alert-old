@@ -1,13 +1,18 @@
-// CSF to INI and INI to CSF tool.
+//! CSF to INI and INI to CSF tool.
+
 use std::{fs::OpenOptions, io::BufReader, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 
-use rust_alert::core::{
-    csf::{CsfLanguageEnum, CsfStringtable, CsfVersionEnum},
-    csf_io::{CsfReader, CsfWriter},
-    ini::IniFile,
-    ini_io::{IniReader, IniWriter},
+use rust_alert::{
+    csf::{
+        CsfLanguageEnum, CsfStringtable, CsfVersionEnum,
+        io::{CsfReader, CsfWriter},
+    },
+    ini::{
+        IniFile,
+        io::{IniReader, IniWriter},
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -15,9 +20,9 @@ enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
     #[error("{0}")]
-    CsfIO(#[from] rust_alert::core::csf_io::Error),
+    CsfIO(#[from] rust_alert::csf::io::Error),
     #[error("{0}")]
-    IniIO(#[from] rust_alert::core::ini_io::Error),
+    IniIO(#[from] rust_alert::ini::io::Error),
     #[error("Label {0} contains no strings")]
     EmptyLabel(String),
     #[error("Label {0} is not in CATEGORY:NAME format, which is required")]

@@ -1,3 +1,5 @@
+//! CSF (stringtable) structures and manipulation.
+
 use std::collections::HashMap;
 
 use clap::ValueEnum;
@@ -235,7 +237,7 @@ impl From<CsfString> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::csf::{CsfLabel, CsfStringtable};
+    use crate::csf::{CsfLabel, CsfStringtable};
 
     #[test]
     /// Test label creation.

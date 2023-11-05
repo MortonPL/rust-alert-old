@@ -1,3 +1,5 @@
+//! MIX database structures and manipulation.
+
 use std::collections::HashMap;
 
 #[derive(Debug, thiserror::Error)]
@@ -61,4 +63,12 @@ pub struct LocalMixDatabase {
 #[derive(Debug, Default)]
 pub struct GlobalMixDatabase {
     pub dbs: Vec<MixDatabase>,
+}
+
+/// LMD header info helper struct.
+#[derive(Debug, Default)]
+pub struct LocalMixDatabaseInfo {
+    pub num_names: u32,
+    pub version: LMDVersionEnum,
+    pub size: u32,
 }

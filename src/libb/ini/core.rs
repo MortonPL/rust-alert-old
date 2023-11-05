@@ -1,3 +1,5 @@
+//! INI structures and manipulation.
+
 use indexmap::IndexMap;
 
 /// An INI file is general purpose, human readable, loosely standarised configuration format.

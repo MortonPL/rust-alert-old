@@ -1,6 +1,8 @@
+//! INI  I/O.
+
 use std::io::{BufRead, Write};
 
-use crate::core::ini::{IniFile, IniSection};
+use crate::ini::{IniFile, IniSection};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -121,7 +123,7 @@ impl IniWriter {
 #[cfg(test)]
 mod tests {
     mod parse_line {
-        use crate::core::ini_io::{Error, IniReader, LineParseResultEnum};
+        use crate::ini::io::{Error, IniReader, LineParseResultEnum};
 
         #[test]
         fn parse_line_entry_ok() {
@@ -235,7 +237,7 @@ mod tests {
     }
 
     mod read_file {
-        use crate::core::ini_io::{Error, IniFile, IniReader, IniSection};
+        use crate::ini::io::{Error, IniFile, IniReader, IniSection};
         use std::io::BufRead;
 
         #[test]
@@ -282,10 +284,7 @@ mod tests {
     }
 
     mod write_file {
-        use crate::core::{
-            ini::{IniFile, IniSection},
-            ini_io::IniWriter,
-        };
+        use crate::ini::{IniFile, IniSection, io::IniWriter};
 
         #[test]
         fn write_section_ok() {

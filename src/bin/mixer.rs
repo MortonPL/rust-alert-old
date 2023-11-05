@@ -1,4 +1,5 @@
-// MIX tool.
+//! MIX multitool.
+
 use std::{
     fs::{write, OpenOptions},
     path::PathBuf, io::Read,
@@ -6,9 +7,10 @@ use std::{
 
 use clap::{Parser, Subcommand};
 
-use rust_alert::core::{
-    mix::{BlowfishKey, LocalMixDatabaseInfo, Mix, MixHeaderFlags},
-    mix_io::{MixReader, MixWriter},
+use rust_alert::mix::{
+    BlowfishKey, Mix, MixHeaderFlags,
+    db::LocalMixDatabaseInfo,
+    io::{MixReader, MixWriter},
 };
 use rust_alert::{printoptionln, printoptionmapln};
 
@@ -17,9 +19,9 @@ enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
     #[error("{0}")]
-    Mix(#[from] rust_alert::core::mix::Error),
+    Mix(#[from] rust_alert::mix::Error),
     #[error("{0}")]
-    MixIO(#[from] rust_alert::core::mix_io::Error),
+    MixIO(#[from] rust_alert::mix::io::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;

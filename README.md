@@ -2,21 +2,40 @@
 
 Structures and utilities for C&C formats written in Rust.
 
-## TODO
+## TODO list
 
-- [x] CSF
-  - [x] CSF <=> INI
-- [x] INI
-  - [ ] INIX?
-- [x] MIX
-  - [x] Blowfish/RSA
+- Library
   - [x] CRC
-  - [x] LMD
-  - [ ] Checksum
-- [ ] PAL
-  - [ ] PAL <=> PNG
-- [ ] SHP
-- [ ] Docs
+  - [x] CSF
+  - [x] INI
+    - [ ] INIX
+  - [ ] MIX
+    - [x] Core
+    - [x] Blowfish/RSA
+    - [ ] LMD/GMD
+    - [ ] SHA1
+  - [ ] PAL
+  - [ ] SHP
+- Tools
+  - [x] CSF Builder
+  - [ ] MIX Multitool
+  - [ ] MIX DB Multitool
+  - [ ] PAL Builder
+- Other
+  - [ ] Readme
+    - [ ] Description
+    - [ ] Shields
+    - [ ] Installation
+    - [ ] Usage
+    - [ ] License
+    - [ ] Third-party
+    - [ ] Contributing/Development
+  - [ ] Nice docs
+  - [ ] CI
+  - [ ] Profile and optimize stuff
+  - [ ] Good tests/code coverage
+
+## TODO Say that the building process uses cargo-make
 
 ## Misc
 

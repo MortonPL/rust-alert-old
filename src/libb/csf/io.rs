@@ -1,10 +1,12 @@
+//! CSF (stringtable) I/O.
+
 use std::{
     io::{Read, Write},
     mem::size_of,
     string::{FromUtf16Error, FromUtf8Error},
 };
 
-use crate::core::csf::{CsfLabel, CsfString, CsfStringtable};
+use crate::csf::{CsfLabel, CsfString, CsfStringtable};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -21,7 +23,7 @@ pub enum Error {
     #[error("{0}")]
     Utf16(#[from] FromUtf16Error),
     #[error("{0}")]
-    CSF(#[from] crate::core::csf::Error),
+    CSF(#[from] crate::csf::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -225,9 +227,9 @@ impl CsfWriter {
 mod tests {
     use std::{collections::HashMap, io::Read};
 
-    use crate::core::{
-        csf::{CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum},
-        csf_io::{CsfReader, CsfWriter},
+    use crate::csf::{
+        CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum,
+        io::{CsfReader, CsfWriter},
     };
 
     fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {

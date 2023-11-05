@@ -1,3 +1,5 @@
+//! General data definitions used by other modules.
+
 /// Supported C&C games.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameEnum {

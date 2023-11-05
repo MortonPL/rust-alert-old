@@ -2,6 +2,8 @@
 name = "rust-alert"
 version = "0.1.0"
 edition = "2021"
+description = "Structures and utilities for C&C formats written in Rust."
+license = "MIT"
 
 [dependencies]
 bitflags = "2.4.1"
@@ -12,10 +14,38 @@ indexmap = "2.0.2"
 num-bigint = "0.4.4"
 thiserror = "1.0.49"
 
+[profile.dev]
+opt-level = 0
+debug = true
+#split-debuginfo = '...'  # Platform-specific.
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = 'unwind'
+incremental = true
+codegen-units = 256
+rpath = false
+
+[profile.release]
+opt-level = 3
+debug = false
+#split-debuginfo = '...'  # Platform-specific.
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = 'abort'
+incremental = false
+codegen-units = 1
+rpath = false
+
 [[bin]]
 name = "mixer"
-path = "src/tools/mixer.rs"
+path = "src/bin/mixer.rs"
+
+[[bin]]
+name = "mixdb"
+path = "src/bin/mixdb.rs"
 
 [[bin]]
 name = "stringer"
-path = "src/tools/stringer.rs"
+path = "src/bin/stringer.rs"

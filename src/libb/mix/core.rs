@@ -1,9 +1,12 @@
+//! MIX structures and manipulation.
+
 use std::{fs::read, path::Path};
 
 use bitflags::bitflags;
 use indexmap::IndexMap;
 
-use crate::core::{crc::crc, general::GameEnum, mix_io::LMD_HEADER_SIZE};
+use crate::core::{crc, GameEnum};
+use crate::mix::{db::LocalMixDatabaseInfo, io::LMD_HEADER_SIZE};
 
 /// Size of a Blowfish key used in MIX encryption.
 pub const BLOWFISH_KEY_SIZE: usize = 56;
@@ -73,40 +76,6 @@ impl From<u16> for MixHeaderExtraFlags {
 impl From<MixHeaderExtraFlags> for u16 {
     fn from(value: MixHeaderExtraFlags) -> Self {
         value.bits()
-    }
-}
-
-/// LMD format version (XCC addition, not in the vanilla game). Doesn't seem to do anything.
-#[derive(Clone, Copy, Debug, Default, clap::ValueEnum, PartialEq, Eq)]
-#[repr(u32)]
-pub enum LMDVersionEnum {
-    TD = 0,
-    RA = 1,
-    TS = 2,
-    RA2 = 5,
-    #[default]
-    YR = 6,
-}
-
-impl TryFrom<u32> for LMDVersionEnum {
-    type Error = Error;
-
-    fn try_from(value: u32) -> Result<Self> {
-        match value {
-            x if x == LMDVersionEnum::TD as u32 => Ok(LMDVersionEnum::TD),
-            x if x == LMDVersionEnum::RA as u32 => Ok(LMDVersionEnum::RA),
-            x if x == LMDVersionEnum::TS as u32 => Ok(LMDVersionEnum::TS),
-            x if x == LMDVersionEnum::YR as u32 => Ok(LMDVersionEnum::YR),
-            x => Err(Error::UnknownLMDVersion(x)),
-        }
-    }
-}
-
-impl TryFrom<LMDVersionEnum> for u32 {
-    type Error = Error;
-
-    fn try_from(value: LMDVersionEnum) -> Result<Self> {
-        Ok(value as u32)
     }
 }
 
@@ -289,13 +258,5 @@ impl MixFileEntry {
 pub struct MixIndexEntry {
     pub id: i32,
     pub offset: u32,
-    pub size: u32,
-}
-
-/// LMD header info.
-#[derive(Debug, Default)]
-pub struct LocalMixDatabaseInfo {
-    pub num_names: u32,
-    pub version: LMDVersionEnum,
     pub size: u32,
 }

@@ -1,3 +1,5 @@
+//! C&C CRC functions used for file indexing.
+
 use std::mem::size_of;
 
 use crc32fast;

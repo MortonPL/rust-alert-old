@@ -1,3 +1,5 @@
+//! MIX I/O.
+
 use std::{
     io::{Read, Write},
     mem::size_of,
@@ -12,7 +14,7 @@ use blowfish::{
 };
 use num_bigint::BigUint;
 
-use crate::core::mix::{
+use crate::mix::{
     BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags,
     MixHeaderFlags, MixIndexEntry,
 };
@@ -44,7 +46,7 @@ pub enum Error {
     #[error("Attempted to read the LMD, but the prefix didn't match")]
     InvalidLMDPrefix,
     #[error("{0}")]
-    MIX(#[from] crate::core::mix::Error),
+    MIX(#[from] crate::mix::core::Error),
     #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
     WrongBlowfishSize(usize),
 }

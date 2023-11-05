@@ -1,12 +1,13 @@
+//! MIX database I/O.
+
 use std::{
     io::{Read, Write},
     mem::size_of,
 };
 
-use crate::core::{
-    crc::crc,
-    general::GameEnum,
-    mixdb::{GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, MixDatabase},
+use crate::{
+    core::{crc, GameEnum},
+    mix::db::{GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, LocalMixDatabaseInfo, MixDatabase},
 };
 
 /// Prefix of every LMD header.
@@ -25,7 +26,7 @@ pub enum Error {
     #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
     WrongBlowfishSize(usize),
     #[error("{0}")]
-    MixDbError(#[from] crate::core::mixdb::Error),
+    MixDbError(#[from] crate::mix::db::Error),
     #[error("Expected a null terminated string, but couldn't find null")]
     NoNullTermination(usize),
 }
@@ -100,14 +101,6 @@ impl LocalMixDbReader {
 
         Ok(pairs)
     }
-}
-
-/// LMD header info helper struct.
-#[derive(Debug, Default)]
-pub struct LocalMixDatabaseInfo {
-    pub num_names: u32,
-    pub version: LMDVersionEnum,
-    pub size: u32,
 }
 
 pub struct LocalMixDbWriter {}
