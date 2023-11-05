@@ -164,7 +164,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse_from(wild::args());
+    let args = Args::parse();
 
     match &args.command {
         Commands::Build(x) => build(x),

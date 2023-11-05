@@ -1,4 +1,5 @@
 /// Supported C&C games.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameEnum {
     /// Command & Conquer, also called Tiberian Dawn or C&C1.
     TD,

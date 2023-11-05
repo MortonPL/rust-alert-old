@@ -269,7 +269,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse_from(wild::args());
+    let args = Args::parse();
     //let args = Args{ command: Commands::Inspect(InspectArgs{ input: "enc.mix".into(), no_header: false, no_index: false, new_mix: false}) };// DEBUG
 
     match &args.command {

@@ -18,3 +18,7 @@ pub mod ini_io;
 pub mod mix;
 /// MIX I/O.
 pub mod mix_io;
+/// MIX Database (Local/Global) structures and manipulation.
+pub mod mixdb;
+/// MIX Database I/O.
+pub mod mixdb_io;

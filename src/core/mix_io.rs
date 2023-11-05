@@ -13,8 +13,8 @@ use blowfish::{
 use num_bigint::BigUint;
 
 use crate::core::mix::{
-    BlowfishKey, LMDVersionEnum, LocalMixDatabaseInfo, Mix, MixFileEntry, MixHeaderExtraFlags,
-    MixHeaderFlags, MixIndexEntry, LMD_KEY_TD, LMD_KEY_TS,
+    BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags,
+    MixHeaderFlags, MixIndexEntry,
 };
 
 /// Prefix of every LMD header.
@@ -83,10 +83,6 @@ impl MixReader {
         let mut buf: Vec<u8> = vec![0u8; residue as usize];
         reader.read_exact(&mut buf)?;
         mix.residue = buf;
-        // Read LMD data.
-        // LMD strings expect order by ID.
-        mix.files.sort_keys();
-        Self::apply_lmd(&mut mix)?;
 
         Ok(mix)
     }
@@ -227,55 +223,6 @@ impl MixReader {
         }
 
         Ok((files, current))
-    }
-
-    /// Apply LMD data to mixed files. MIX index *must* be sorted by ID.
-    fn apply_lmd(mix: &mut Mix) -> Result<()> {
-        let key = if mix.is_new_mix {
-            LMD_KEY_TS
-        } else {
-            LMD_KEY_TD
-        };
-        if let Some(lmd) = mix.files.get(&key) {
-            // Read the LMD header.
-            let reader: &mut dyn Read = &mut lmd.body.as_slice();
-            mix.lmd = Some(Self::read_lmd_header(reader)?);
-            // Read the LMD body and assign names to files.
-            let mut buf: Vec<u8> = vec![0u8; lmd.index.size as usize - LMD_HEADER_SIZE];
-            reader.read_exact(&mut buf)?;
-            String::from_utf8(buf)?
-                .split(|x| x == '\0')
-                .zip(mix.files.values_mut())
-                .for_each(|(name, file)| file.name = Some(name.to_string()));
-        }
-        Ok(())
-    }
-
-    /// Read the LMD header.
-    fn read_lmd_header(reader: &mut dyn Read) -> Result<LocalMixDatabaseInfo> {
-        // Read the mandatory prefix.
-        let mut buf = [0u8; LMD_PREFIX.len()];
-        reader.read_exact(&mut buf)?;
-        if buf.ne(LMD_PREFIX) {
-            return Err(Error::InvalidLMDPrefix);
-        }
-        // Read header data.
-        let mut buf = [0u8; size_of::<u32>()];
-        reader.read_exact(&mut buf)?;
-        let size = u32::from_le_bytes(buf);
-        reader.read_exact(&mut buf)?; // Skip 4 bytes
-        reader.read_exact(&mut buf)?; // Skip 4 bytes
-        reader.read_exact(&mut buf)?;
-        let version: LMDVersionEnum = u32::from_le_bytes(buf).try_into()?;
-        reader.read_exact(&mut buf)?;
-        let num_names = u32::from_le_bytes(buf);
-        let lmd = LocalMixDatabaseInfo {
-            num_names,
-            version,
-            size,
-        };
-
-        Ok(lmd)
     }
 
     /// Read the encrypted blowfish key and decrypt it using a handmade RSA algorithm.

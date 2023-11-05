@@ -1,7 +1,6 @@
 use std::{fs::read, path::Path};
 
 use bitflags::bitflags;
-use clap::ValueEnum;
 use indexmap::IndexMap;
 
 use crate::core::{crc::crc, general::GameEnum, mix_io::LMD_HEADER_SIZE};
@@ -78,7 +77,7 @@ impl From<MixHeaderExtraFlags> for u16 {
 }
 
 /// LMD format version (XCC addition, not in the vanilla game). Doesn't seem to do anything.
-#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, clap::ValueEnum, PartialEq, Eq)]
 #[repr(u32)]
 pub enum LMDVersionEnum {
     TD = 0,
