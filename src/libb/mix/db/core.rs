@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use crate::utils::BuildNothingHasher;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -46,10 +48,16 @@ impl TryFrom<LMDVersionEnum> for u32 {
     }
 }
 
-/// A MIX database is a file mapping file IDs into their original names.
-#[derive(Debug, Default)]
+/// A MIX database is a file mapping unique file IDs into their original names.
+#[derive(Debug)]
 pub struct MixDatabase {
-    pub names: HashMap<i32, String>,
+    pub names: HashMap<i32, String, BuildNothingHasher>,
+}
+
+impl Default for MixDatabase {
+    fn default() -> Self {
+        Self { names: HashMap::<i32, String, BuildNothingHasher>::default() }
+    }
 }
 
 /// A local MIX database is a file within a MIX.

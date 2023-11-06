@@ -17,6 +17,7 @@ use num_bigint::BigUint;
 use crate::mix::{
     BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags,
     MixHeaderFlags, MixIndexEntry,
+    db::MixDatabase
 };
 
 /// Prefix of every LMD header.
@@ -219,8 +220,7 @@ impl MixReader {
             files.push(MixFileEntry {
                 index: entry,
                 body,
-                residue,
-                name: None,
+                residue
             });
         }
 
@@ -254,7 +254,7 @@ impl MixReader {
 pub struct MixWriter {}
 
 impl MixWriter {
-    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
+    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool, mixdb: Option<MixDatabase>) -> Result<()> {
         Self::write_header(writer, mix, force_new_format)?;
 
         todo!();

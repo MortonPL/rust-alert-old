@@ -6,7 +6,6 @@ use bitflags::bitflags;
 use indexmap::IndexMap;
 
 use crate::core::{crc, GameEnum};
-use crate::mix::{db::LocalMixDatabaseInfo, io::LMD_HEADER_SIZE};
 
 /// Size of a Blowfish key used in MIX encryption.
 pub const BLOWFISH_KEY_SIZE: usize = 56;
@@ -98,8 +97,6 @@ pub struct Mix {
     pub checksum: Option<[u8; CHECKSUM_SIZE]>,
     /// Leftover bytes after the last file in the body.
     pub residue: Vec<u8>,
-    /// Local Mix Database (not vanilla; introduced in XCC) header info.
-    pub lmd: Option<LocalMixDatabaseInfo>,
 }
 
 impl Mix {
@@ -109,13 +106,15 @@ impl Mix {
         let len = data.len() as u32;
         let path: &Path = path.as_ref();
         let mut file = MixFileEntry::new(
+            crc(
+                path.file_name()
+                    .ok_or(Error::NoFileName(path.into()))?
+                    .to_str()
+                    .ok_or(Error::OsStrInvalidUnicode)?,
+                GameEnum::YR, // TODO not always YR
+            ),
             data,
             vec![],
-            path.file_name()
-                .ok_or(Error::NoFileName(path.into()))?
-                .to_str()
-                .ok_or(Error::OsStrInvalidUnicode)?
-                .into(),
         );
         file.index.offset = self.find_last_offset();
         if let Some(f) = self.files.insert(file.index.id, file) {
@@ -126,9 +125,9 @@ impl Mix {
     }
 
     /// Add a file from raw data at the end of the MIX. Overwriting a file raises an error.
-    pub fn add_file_raw(&mut self, data: Vec<u8>, name: String) -> Result<()> {
+    pub fn add_file_raw(&mut self, data: Vec<u8>, id: i32) -> Result<()> {
         let len = data.len() as u32;
-        let mut file = MixFileEntry::new(data, vec![], name);
+        let mut file = MixFileEntry::new(id, data, vec![]);
         file.index.offset = self.find_last_offset();
         if let Some(f) = self.files.insert(file.index.id, file) {
             Err(Error::FileOverwrite(f))?
@@ -144,13 +143,15 @@ impl Mix {
         let data = read(&path)?;
         let path: &Path = path.as_ref();
         let file = MixFileEntry::new(
+            crc(
+                path.file_name()
+                    .ok_or(Error::NoFileName(path.into()))?
+                    .to_str()
+                    .ok_or(Error::OsStrInvalidUnicode)?,
+                GameEnum::YR, // TODO not always YR
+            ),
             data,
             vec![],
-            path.file_name()
-                .ok_or(Error::NoFileName(path.into()))?
-                .to_str()
-                .ok_or(Error::OsStrInvalidUnicode)?
-                .into(),
         );
         if let Some(f) = self.files.insert(file.index.id, file) {
             if !allow_overwrite {
@@ -160,25 +161,11 @@ impl Mix {
         Ok(())
     }
 
-    /// Recalculate the MIX index and LMD. Previous order of file offsets might not be preserved.
+    /// Recalculate the MIX index. Previous order of file offsets might not be preserved.
     /// Compactness (or lack thereof) is preserved.
     pub fn recalc(&mut self) {
         let mut offset = 0u32;
         self.body_size = 0;
-        if let Some(lmd) = &mut self.lmd {
-            lmd.num_names = self
-                .files
-                .values()
-                .fold(0, |acc, f| acc + if f.name.is_some() { 1 } else { 0 });
-            lmd.size = LMD_HEADER_SIZE as u32
-                + self.files.values().fold(0, |acc, f| {
-                    acc + 1
-                        + f.name
-                            .as_ref()
-                            .map(|s| s.len() as u32)
-                            .unwrap_or_default()
-                })
-        }
         for file in self.files.values_mut() {
             offset += file.residue.len() as u32;
             file.index.offset = offset;
@@ -188,24 +175,10 @@ impl Mix {
         self.body_size += self.residue.len() as u32;
     }
 
-    /// Recalculate the MIX index, LMD and compact the MIX. Previous order of file offsets might not be preserved.
+    /// Recalculate the MIX index and compact the MIX. Previous order of file offsets might not be preserved.
     pub fn recalc_compact(&mut self) {
         let mut offset = 0u32;
         self.body_size = 0;
-        if let Some(lmd) = &mut self.lmd {
-            lmd.num_names = self
-                .files
-                .values()
-                .fold(0, |acc, f| acc + if f.name.is_some() { 1 } else { 0 });
-            lmd.size = LMD_HEADER_SIZE as u32
-                + self.files.values().fold(0, |acc, f| {
-                    acc + 1
-                        + f.name
-                            .as_ref()
-                            .map(|s| s.len() as u32)
-                            .unwrap_or_default()
-                })
-        }
         for file in self.files.values_mut() {
             file.index.offset = offset;
             offset += file.index.size;
@@ -230,26 +203,20 @@ pub struct MixFileEntry {
     pub index: MixIndexEntry,
     pub body: Vec<u8>,
     pub residue: Vec<u8>,
-    pub name: Option<String>,
 }
 
 impl MixFileEntry {
-    pub fn new(body: Vec<u8>, residue: Vec<u8>, name: String) -> Self {
+    pub fn new(id: i32, body: Vec<u8>, residue: Vec<u8>) -> Self {
         // TODO parametrized game ver
         MixFileEntry {
             index: MixIndexEntry {
-                id: crc(&name, GameEnum::YR),
+                id,
                 offset: 0,
                 size: body.len() as u32,
             },
             body,
             residue,
-            name: Some(name),
         }
-    }
-
-    pub fn get_name(&self) -> String {
-        self.name.clone().unwrap_or(format!("{:X}", self.index.id))
     }
 }
 

@@ -149,6 +149,7 @@ pub struct GlobalMixDbReader {}
 
 impl GlobalMixDbReader {
     pub fn read_file(reader: &mut dyn Read) -> Result<GlobalMixDatabase> {
+        // TODO: Might want to use BufRead and read_until(), or keep being a moron.
         // NOTE: The XCC format kinda sucks, because we don't know the size in advance
         // and we're reading variable length strings. We have three options:
         // 1) read everything at once, which is ugly, heavy and will break things
