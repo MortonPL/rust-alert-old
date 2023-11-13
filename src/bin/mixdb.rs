@@ -23,8 +23,7 @@ struct Args {
 
 /// Modes of operation.
 #[derive(Subcommand)]
-enum Commands {
-}
+enum Commands {}
 
 fn main() -> Result<()> {
     let args = Args::parse();

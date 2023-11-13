@@ -100,6 +100,14 @@ pub struct Mix {
 }
 
 impl Mix {
+    pub fn get_file(&self, id: i32) -> Option<&Vec<u8>> {
+        self.files.get(&id).map(|x| &x.body)
+    }
+
+    pub fn get_file_mut(&mut self, id: i32) -> Option<&mut Vec<u8>> {
+        self.files.get_mut(&id).map(|x| &mut x.body)
+    }
+
     /// Add a file from path at the end of the MIX. Overwriting a file raises an error.
     pub fn add_file_path(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let data = read(&path)?;
@@ -207,7 +215,6 @@ pub struct MixFileEntry {
 
 impl MixFileEntry {
     pub fn new(id: i32, body: Vec<u8>, residue: Vec<u8>) -> Self {
-        // TODO parametrized game ver
         MixFileEntry {
             index: MixIndexEntry {
                 id,

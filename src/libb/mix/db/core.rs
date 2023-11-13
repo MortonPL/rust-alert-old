@@ -49,28 +49,39 @@ impl TryFrom<LMDVersionEnum> for u32 {
 }
 
 /// A MIX database is a file mapping unique file IDs into their original names.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MixDatabase {
     pub names: HashMap<i32, String, BuildNothingHasher>,
 }
 
-impl Default for MixDatabase {
-    fn default() -> Self {
-        Self { names: HashMap::<i32, String, BuildNothingHasher>::default() }
-    }
-}
-
-/// A local MIX database is a file within a MIX.
+/// A local MIX database is a file within a MIX. XCC addition.
 #[derive(Debug, Default)]
 pub struct LocalMixDatabase {
     pub db: MixDatabase,
     pub version: LMDVersionEnum,
 }
 
-/// A global MIX database is a separate file containing several databases.
+/// A global MIX database is a separate file containing several databases. XCC addition.
 #[derive(Debug, Default)]
 pub struct GlobalMixDatabase {
     pub dbs: Vec<MixDatabase>,
+}
+
+impl GlobalMixDatabase {
+    pub fn get_name(&self, id: i32) -> Option<&String> {
+        self.dbs.iter().find_map(|x| x.names.get(&id))
+    }
+
+    pub fn get_name_mut(&mut self, id: i32) -> Option<&mut String> {
+        self.dbs.iter_mut().find_map(|x| x.names.get_mut(&id))
+    }
+
+    pub fn get_name_or_id(&self, id: i32) -> String {
+        self.dbs
+            .iter()
+            .find_map(|x| x.names.get(&id))
+            .map_or_else(|| format!("{:X}", id), |x| x.to_string())
+    }
 }
 
 /// LMD header info helper struct.

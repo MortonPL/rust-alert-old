@@ -284,7 +284,7 @@ mod tests {
     }
 
     mod write_file {
-        use crate::ini::{IniFile, IniSection, io::IniWriter};
+        use crate::ini::{io::IniWriter, IniFile, IniSection};
 
         #[test]
         fn write_section_ok() {

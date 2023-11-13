@@ -7,7 +7,9 @@ use std::{
 
 use crate::{
     core::{crc, GameEnum},
-    mix::db::{GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, LocalMixDatabaseInfo, MixDatabase},
+    mix::db::{
+        GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, LocalMixDatabaseInfo, MixDatabase,
+    },
 };
 
 /// Prefix of every LMD header.
@@ -40,13 +42,10 @@ impl LocalMixDbReader {
         // Read the LMD header.
         let info = Self::read_header(reader)?;
         // Read and process the LMD body.
-        let strings = Self::read_strings(
-            reader,
-            info.size as usize - LMD_HEADER_SIZE,
-            info.version,
-        )?;
+        let strings =
+            Self::read_strings(reader, info.size as usize - LMD_HEADER_SIZE, info.version)?;
         let mut lmd = LocalMixDatabase::default();
-        lmd.db.names.extend(strings.into_iter());
+        lmd.db.names.extend(strings);
         lmd.version = info.version;
         Ok(lmd)
     }
@@ -107,8 +106,8 @@ pub struct LocalMixDbWriter {}
 
 impl LocalMixDbWriter {
     pub fn write_file(writer: &mut dyn Write, lmd: &LocalMixDatabase) -> Result<()> {
-        Self::write_header(writer, &lmd)?;
-        Self::write_strings(writer, &lmd)?;
+        Self::write_header(writer, lmd)?;
+        Self::write_strings(writer, lmd)?;
 
         Ok(())
     }
@@ -180,7 +179,7 @@ impl GlobalMixDbReader {
         Ok(gmd)
     }
 
-    pub fn read_database(buf: &Vec<u8>, mut ptr: usize) -> Result<(Vec<String>, usize)> {
+    pub fn read_database(buf: &[u8], mut ptr: usize) -> Result<(Vec<String>, usize)> {
         let mut strings = Vec::<String>::new();
         let num_names = u32::from_le_bytes(buf[ptr..ptr + 4].try_into().unwrap()); // Won't panic.
         ptr += 4;

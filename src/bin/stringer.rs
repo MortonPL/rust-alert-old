@@ -5,14 +5,12 @@ use std::{fs::OpenOptions, io::BufReader, path::PathBuf};
 use clap::{Parser, Subcommand};
 
 use rust_alert::{
+    converters::{csf2ini, ini2csf},
     csf::{
-        CsfLanguageEnum, CsfStringtable, CsfVersionEnum,
         io::{CsfReader, CsfWriter},
+        CsfLanguageEnum, CsfVersionEnum,
     },
-    ini::{
-        IniFile,
-        io::{IniReader, IniWriter},
-    },
+    ini::io::{IniReader, IniWriter},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -23,10 +21,8 @@ enum Error {
     CsfIO(#[from] rust_alert::csf::io::Error),
     #[error("{0}")]
     IniIO(#[from] rust_alert::ini::io::Error),
-    #[error("Label {0} contains no strings")]
-    EmptyLabel(String),
-    #[error("Label {0} is not in CATEGORY:NAME format, which is required")]
-    NoSplit(String),
+    #[error("{0}")]
+    Conversion(#[from] rust_alert::converters::CSFConversionError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -87,35 +83,6 @@ struct InspectArgs {
     input: PathBuf,
 }
 
-fn extract_csf_to_ini(csf: CsfStringtable) -> Result<IniFile> {
-    let mut ini = IniFile::default();
-    for (name, label) in csf.iter() {
-        let value = &label
-            .get_first()
-            .ok_or(Error::EmptyLabel(name.to_string()))?
-            .value
-            .replace('\n', "\\n");
-        let mut iter = name.split(':');
-        let kv = match (iter.next(), iter.next()) {
-            (Some(k), Some(v)) => Ok((k, v)),
-            _ => Err(Error::NoSplit(name.to_string())),
-        }?;
-        ini.add_to_section(kv.0, kv.1, value);
-    }
-    Ok(ini)
-}
-
-fn build_csf_from_ini(ini: IniFile) -> Result<CsfStringtable> {
-    let mut csf = CsfStringtable::default();
-    for (name, section) in ini.iter() {
-        for (key, value) in section.iter() {
-            let value = &value.value.replace("\\n", "\n");
-            csf.create_label(format!("{name}:{key}"), value);
-        }
-    }
-    Ok(csf)
-}
-
 fn build(args: &BuildArgs) -> Result<()> {
     let reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut reader = BufReader::new(reader);
@@ -128,7 +95,7 @@ fn build(args: &BuildArgs) -> Result<()> {
     if args.sort {
         ini.sort_all()
     }
-    let mut csf = build_csf_from_ini(ini)?;
+    let mut csf = ini2csf(&ini);
     csf.language = args.language;
     csf.version = args.version;
     CsfWriter::write_file(&csf, &mut writer)?;
@@ -143,7 +110,7 @@ fn extract(args: &ExtractArgs) -> Result<()> {
         .truncate(true)
         .open(&args.output)?;
     let csf = CsfReader::read_file(&mut reader)?;
-    let mut ini = extract_csf_to_ini(csf)?;
+    let mut ini = csf2ini(&csf)?;
     if args.sort {
         ini.sort_all();
     }

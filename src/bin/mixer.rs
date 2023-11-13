@@ -2,17 +2,23 @@
 
 use std::{
     fs::{write, OpenOptions},
-    path::PathBuf, io::Read,
+    io::BufReader,
+    io::Read,
+    path::PathBuf,
 };
 
 use clap::{Parser, Subcommand};
 
-use rust_alert::mix::{
-    BlowfishKey, Mix, MixHeaderFlags,
-    db::LocalMixDatabaseInfo,
-    io::{MixReader, MixWriter},
+use rust_alert::{
+    converters::ini2db,
+    ini::io::IniReader,
+    mix::{
+        db::{io::LocalMixDbReader, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
+        io::{MixReader, MixWriter},
+        BlowfishKey, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
+    },
+    printoptionmapln,
 };
-use rust_alert::{printoptionln, printoptionmapln};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -22,6 +28,10 @@ enum Error {
     Mix(#[from] rust_alert::mix::Error),
     #[error("{0}")]
     MixIO(#[from] rust_alert::mix::io::Error),
+    #[error("{0}")]
+    IniIO(#[from] rust_alert::ini::io::Error),
+    #[error("{0}")]
+    DatabaseConversionError(#[from] rust_alert::converters::DBConversionError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -35,6 +45,9 @@ struct Args {
     #[command(subcommand)]
     /// Mode of operation.
     command: Commands,
+    /// Force new mix format, useful if extra flags are non-0.
+    #[arg(long, default_value_t = false)]
+    new_mix: bool,
 }
 
 /// Modes of operation.
@@ -74,9 +87,6 @@ struct BuildArgs {
     /// Build LMD for the MIX file.
     #[arg(short, long, default_value_t = false)]
     lmd: bool,
-    /// Force new mix format, useful if extra flags are non-0.
-    #[arg(long, default_value_t = false)]
-    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -92,9 +102,8 @@ struct ChecksumArgs {
 struct CompactArgs {
     /// Path to an input MIX file.
     input: PathBuf,
-    /// Force new mix format, useful if extra flags are non-0.
-    #[arg(long, default_value_t = false)]
-    new_mix: bool,
+    /// Path to an output MIX file. Same as input by default.
+    output: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -116,9 +125,6 @@ struct CorruptArgs {
     /// Corrupt extra flags in the MIX header.
     #[arg(long, default_value_t = false)]
     header_corrupt_flags_extra: bool,
-    /// Force new mix format, useful if extra flags are non-0.
-    #[arg(long, default_value_t = false)]
-    new_mix: bool,
 }
 
 #[derive(clap::Args)]
@@ -142,12 +148,12 @@ struct ExtractArgs {
     /// Do not print any messages.
     #[arg(short, long, default_value_t = false)]
     quiet: bool,
-    /// Force new mix format, useful if extra flags are non-0.
-    #[arg(long, default_value_t = false)]
-    new_mix: bool,
     /// Recursively extract MIXes from MIXes to subfolders.
     #[arg(short, long, default_value_t = false)]
     recursive: bool,
+    /// Path to a MIX database in INI format.
+    #[arg(short, long)]
+    db: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -160,12 +166,53 @@ struct InspectArgs {
     /// Do not print the file index.
     #[arg(long, default_value_t = false)]
     no_index: bool,
-    /// Force new mix format, useful if extra flags are non-0.
-    #[arg(long, default_value_t = false)]
-    new_mix: bool,
+    /// Path to a MIX database in INI format.
+    #[arg(short, long)]
+    db: Option<PathBuf>,
 }
 
-fn build(args: &BuildArgs) -> Result<()> {
+fn read_db(path: &PathBuf) -> Result<MixDatabase> {
+    let reader = OpenOptions::new().read(true).open(path)?;
+    let reader = BufReader::new(reader);
+    let ini = IniReader::read_file(reader)?;
+    let db = ini2db(&ini)?;
+    Ok(db)
+}
+
+fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
+    let lmd = mix.get_file(if mix.is_new_mix {
+        LMD_KEY_TS
+    } else {
+        LMD_KEY_TD
+    });
+    let lmd = lmd.map(|x| {
+        let x: &mut dyn Read = &mut x.as_slice();
+        LocalMixDbReader::read_file(x)
+    });
+    match lmd.transpose() {
+        Ok(x) => x,
+        Err(x) => {
+            println!("Warning: found LMD, but failed to read it. Reason: {}", x);
+            None
+        }
+    }
+}
+
+fn prepare_databases(mix: &Mix, gmd_path: &Option<PathBuf>) -> Result<(GlobalMixDatabase, bool)> {
+    let mut mixdb = GlobalMixDatabase::default();
+    let mut has_lmd = false;
+    if let Some(lmd) = read_lmd(mix) {
+        mixdb.dbs.push(lmd.db);
+        has_lmd = true;
+    }
+    if let Some(gmd_path) = gmd_path {
+        let db = read_db(gmd_path)?;
+        mixdb.dbs.push(db);
+    }
+    Ok((mixdb, has_lmd))
+}
+
+fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
@@ -179,48 +226,64 @@ fn build(args: &BuildArgs) -> Result<()> {
             Err(e) => Err(e)?,
         }
     }
-    if args.lmd {
-        mix.lmd = Some(LocalMixDatabaseInfo::default());
-    }
+
+    let lmd = args.lmd.then(MixDatabase::default);
     mix.recalc();
-    MixWriter::write_file(&mut writer, &mix, args.new_mix)?;
+    MixWriter::write_file(&mut writer, &mix, new_mix)?;
     Ok(())
 }
 
-fn checksum(args: &ChecksumArgs) -> Result<()> {
+fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
     Ok(())
 }
 
-fn compact(args: &CompactArgs) -> Result<()> {
-    Ok(())
-}
-
-fn corrupt(args: &CorruptArgs) -> Result<()> {
-    Ok(())
-}
-
-fn encrypt(args: &EncryptArgs) -> Result<()> {
-    Ok(())
-}
-
-fn extract(args: &ExtractArgs) -> Result<()> {
+fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    extract_inner(&mut reader, &args.output, args)?;
+    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
+    mix.recalc_compact();
+    let mut writer = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(args.output.as_ref().unwrap_or(&args.input))?;
+    MixWriter::write_file(&mut writer, &mix, new_mix)?;
+    Ok(())
+}
+
+fn corrupt(args: &CorruptArgs, new_mix: bool) -> Result<()> {
+    Ok(())
+}
+
+fn encrypt(args: &EncryptArgs, new_mix: bool) -> Result<()> {
+    Ok(())
+}
+
+fn extract(args: &ExtractArgs, new_mix: bool) -> Result<()> {
+    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
+    extract_inner(&mut reader, &args.output, args, new_mix)?;
 
     Ok(())
 }
 
-fn extract_inner(reader: &mut dyn Read, output_dir: &PathBuf, args: &ExtractArgs) -> Result<()> {
-    let mix = MixReader::read_file(reader, args.new_mix)?;
+fn extract_inner(
+    reader: &mut dyn Read,
+    output_dir: &PathBuf,
+    args: &ExtractArgs,
+    new_mix: bool,
+) -> Result<()> {
+    let mix = MixReader::read_file(reader, new_mix)?;
     std::fs::create_dir_all(output_dir)?;
+    let (mixdb, _) = prepare_databases(&mix, &args.db)?;
+
     for file in mix.files.values() {
-        let filename = file.get_name();
+        let filename = mixdb.get_name_or_id(file.index.id);
+
         if !args.quiet {
             println!("{}, {} bytes", filename, file.index.size);
         }
         if args.recursive && filename.ends_with(".mix") {
             let mix_reader: &mut dyn Read = &mut file.body.as_slice();
-            extract_inner(mix_reader, &output_dir.join(filename), args)?;
+            extract_inner(mix_reader, &output_dir.join(filename), args, new_mix)?;
         } else {
             write(output_dir.join(filename), &file.body)?;
         }
@@ -229,9 +292,11 @@ fn extract_inner(reader: &mut dyn Read, output_dir: &PathBuf, args: &ExtractArgs
     Ok(())
 }
 
-fn inspect(args: &InspectArgs) -> Result<()> {
+fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mix = MixReader::read_file(&mut reader, args.new_mix)?;
+    let mix = MixReader::read_file(&mut reader, new_mix)?;
+    let (mixdb, has_lmd) = prepare_databases(&mix, &args.db)?;
+
     if !args.no_header {
         println!(
             "Mix type:           {}",
@@ -258,15 +323,22 @@ fn inspect(args: &InspectArgs) -> Result<()> {
             "Checksum:           {:?}",
             mix.flags.contains(MixHeaderFlags::CHECKSUM)
         );
-        printoptionln!("Local Mix Database: {:?}", mix.lmd);
+        println!("Has LMD:            {}", has_lmd);
     }
+
     if !args.no_index {
         println!();
         println!("File Offset Size");
-        mix.files
-            .values()
-            .for_each(|f| println!("{}: {:?} {:?}", f.get_name(), f.index.offset, f.index.size));
+        mix.files.values().for_each(|f| {
+            println!(
+                "{}: {:?} {:?}",
+                mixdb.get_name_or_id(f.index.id),
+                f.index.offset,
+                f.index.size
+            )
+        });
     }
+
     Ok(())
 }
 
@@ -275,12 +347,12 @@ fn main() -> Result<()> {
     //let args = Args{ command: Commands::Inspect(InspectArgs{ input: "enc.mix".into(), no_header: false, no_index: false, new_mix: false}) };// DEBUG
 
     match &args.command {
-        Commands::Build(x) => build(x),
-        Commands::Checksum(x) => checksum(x),
-        Commands::Compact(x) => compact(x),
-        Commands::Corrupt(x) => corrupt(x),
-        Commands::Encrypt(x) => encrypt(x),
-        Commands::Extract(x) => extract(x),
-        Commands::Inspect(x) => inspect(x),
+        Commands::Build(x) => build(x, args.new_mix),
+        Commands::Checksum(x) => checksum(x, args.new_mix),
+        Commands::Compact(x) => compact(x, args.new_mix),
+        Commands::Corrupt(x) => corrupt(x, args.new_mix),
+        Commands::Encrypt(x) => encrypt(x, args.new_mix),
+        Commands::Extract(x) => extract(x, args.new_mix),
+        Commands::Inspect(x) => inspect(x, args.new_mix),
     }
 }

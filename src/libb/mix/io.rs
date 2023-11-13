@@ -6,18 +6,13 @@ use std::{
 };
 
 use blowfish::{
-    cipher::{
-        generic_array::GenericArray,
-        BlockDecrypt,
-    },
+    cipher::{generic_array::GenericArray, BlockDecrypt},
     Blowfish,
 };
 use num_bigint::BigUint;
 
 use crate::mix::{
-    BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags,
-    MixHeaderFlags, MixIndexEntry,
-    db::MixDatabase
+    BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags, MixIndexEntry,
 };
 
 /// Prefix of every LMD header.
@@ -57,7 +52,15 @@ type Result<T> = std::result::Result<T, Error>;
 /// Provides static methods for reading MIX files.
 pub struct MixReader {}
 
-type HeaderReturnType = (bool, MixHeaderExtraFlags, MixHeaderFlags, Option<(BlowfishKey, Blowfish)>, u16, u32, [u8; 2]);
+type HeaderReturnType = (
+    bool,
+    MixHeaderExtraFlags,
+    MixHeaderFlags,
+    Option<(BlowfishKey, Blowfish)>,
+    u16,
+    u32,
+    [u8; 2],
+);
 
 impl MixReader {
     pub fn read_file(reader: &mut dyn Read, force_new_format: bool) -> Result<Mix> {
@@ -91,10 +94,7 @@ impl MixReader {
     }
 
     /// Read the MIX header.
-    pub fn read_header(
-        reader: &mut dyn Read,
-        force_new_format: bool,
-    ) -> Result<HeaderReturnType> {
+    pub fn read_header(reader: &mut dyn Read, force_new_format: bool) -> Result<HeaderReturnType> {
         let mut buf = [0u8; size_of::<u16>()];
         let mut flags = MixHeaderFlags::default();
         let mut blowfish: Option<(BlowfishKey, Blowfish)> = None;
@@ -220,7 +220,7 @@ impl MixReader {
             files.push(MixFileEntry {
                 index: entry,
                 body,
-                residue
+                residue,
             });
         }
 
@@ -254,7 +254,7 @@ impl MixReader {
 pub struct MixWriter {}
 
 impl MixWriter {
-    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool, mixdb: Option<MixDatabase>) -> Result<()> {
+    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
         Self::write_header(writer, mix, force_new_format)?;
 
         todo!();

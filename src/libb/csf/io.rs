@@ -228,8 +228,8 @@ mod tests {
     use std::{collections::HashMap, io::Read};
 
     use crate::csf::{
-        CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum,
         io::{CsfReader, CsfWriter},
+        CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum,
     };
 
     fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {
