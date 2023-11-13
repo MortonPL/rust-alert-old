@@ -3,6 +3,7 @@
 use std::{
     io::{Read, Write},
     mem::size_of,
+    str::FromStr,
 };
 
 use blowfish::{
@@ -25,13 +26,20 @@ pub const BLOWFISH_KEY_CHUNK_SIZE: usize = 40;
 pub const ENCRYPTED_BLOWFISH_KEY_SIZE: usize = 80;
 /// Blowfish block size.
 pub const BLOWFISH_BLOCK_SIZE: usize = 8;
-/// Exponent of Westwood's "fast"/RSA key.
+/// Exponent (e) of Westwood's "fast"/RSA key.
 pub const EXPONENT: &[u8] = &[1, 0, 1];
-/// Modulus of Westwood's "fast"/RSA key.
+/// Modulus (n) of Westwood's "fast"/RSA key.
 pub const MODULUS: &[u8] = &[
     21, 127, 67, 170, 61, 79, 251, 209, 230, 193, 176, 248, 106, 14, 221, 171, 74, 176, 130, 102,
     250, 84, 170, 232, 162, 63, 113, 81, 214, 96, 81, 86, 228, 252, 57, 109, 8, 218, 188, 81,
 ];
+/// Modular inverse (d) of Westwood's "fast"/RSA key.
+pub const INVERSE: &[u8] = &[
+    129, 48, 137, 130, 230, 244, 251, 161, 6, 87, 223, 27, 78, 39, 88, 67, 51, 212, 180, 74, 174,
+    174, 208, 219, 91, 94, 16, 84, 124, 198, 34, 196, 71, 156, 19, 153, 188, 55, 86, 10,
+];
+
+pub type BlowfishKeyEncrypted = [u8; ENCRYPTED_BLOWFISH_KEY_SIZE];
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,7 +52,9 @@ pub enum Error {
     #[error("{0}")]
     MIX(#[from] crate::mix::core::Error),
     #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
-    WrongBlowfishSize(usize),
+    WrongBlowfishSizeDecrypted(usize),
+    #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
+    WrongBlowfishSizeEncrypted(usize),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -246,7 +256,9 @@ impl MixReader {
             .collect();
         // Ensure that the result is exactly 56 bytes long.
         let len = blowfish.len();
-        blowfish.try_into().or(Err(Error::WrongBlowfishSize(len)))
+        blowfish
+            .try_into()
+            .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
     }
 }
 
@@ -258,7 +270,6 @@ impl MixWriter {
         Self::write_header(writer, mix, force_new_format)?;
 
         todo!();
-        // prep_lmd();
         // write_index();
         // write_bodies();
     }
@@ -271,8 +282,9 @@ impl MixWriter {
             let flags: u16 = mix.flags.into();
             writer.write_all(&flags.to_le_bytes())?;
             // New MIX format (>=RA).
-            if mix.flags.contains(MixHeaderFlags::ENCRYPTION) {
+            if let Some(key) = mix.blowfish_key {
                 // Encrypt and write header.
+                MixWriter::write_blowfish(writer, &key)?;
             } else {
                 // Just write header.
                 writer.write_all(&(mix.files.len() as u16).to_le_bytes())?;
@@ -284,5 +296,67 @@ impl MixWriter {
             writer.write_all(&mix.body_size.to_le_bytes())?;
         }
         Ok(())
+    }
+
+    /// Encrypt the Blowfish key using a handmade RSA algorithm.
+    fn write_blowfish(writer: &mut dyn Write, key: &BlowfishKey) -> Result<()> {
+        // Get the RSA/"fast" key from known constants.
+        let inverted = BigUint::from_bytes_le(INVERSE);
+        let modulus = BigUint::from_bytes_le(MODULUS);
+        // Encrypt the key in 40 byte chunks.
+        let blowfish: Vec<u8> = key
+            .chunks(BLOWFISH_KEY_CHUNK_SIZE)
+            .flat_map(|x| {
+                BigUint::from_bytes_le(x)
+                    .modpow(&inverted, &modulus)
+                    .to_bytes_le()
+            })
+            .collect();
+        // Ensure that the result is exactly 80 bytes long.
+        let len = blowfish.len();
+        let blowfish: BlowfishKeyEncrypted = blowfish
+            .try_into()
+            .or(Err(Error::WrongBlowfishSizeDecrypted(len)))?;
+        writer.write_all(&blowfish)?;
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::io::Read;
+    use crate::mix::{BlowfishKey, io::{BlowfishKeyEncrypted, MixReader, MixWriter}};
+
+    const ENCRYPTED_KEY: &BlowfishKeyEncrypted = &[
+        31, 245, 211, 151, 220, 77, 151, 240, 232, 170, 197, 246, 40, 90, 199, 85, 148, 216, 142, 158,
+        120, 4, 198, 144, 196, 23, 145, 144, 181, 177, 143, 143, 28, 215, 81, 110, 83, 64, 84, 41, 42,
+        194, 69, 188, 141, 96, 189, 202, 60, 66, 183, 76, 236, 123, 9, 8, 42, 37, 44, 85, 142, 68, 81,
+        246, 102, 120, 25, 18, 35, 43, 174, 88, 226, 132, 96, 131, 253, 188, 57, 5,
+    ];
+    
+    const DECRYPTED_KEY: &BlowfishKey = &[
+        171, 92, 165, 248, 18, 172, 78, 242, 212, 163, 254, 255, 93, 40, 18, 170, 67, 107, 152, 11,
+        192, 215, 163, 33, 232, 190, 204, 198, 24, 194, 53, 84, 185, 26, 134, 104, 114, 41, 79, 178,
+        147, 188, 131, 20, 170, 220, 77, 119, 142, 102, 227, 196, 177, 113, 68, 247,
+    ];
+
+    #[test]
+    /// Test Blowfish key encryption/decryption.
+    fn encrypt_decrypt_blowfish() {
+        let encrypted = ENCRYPTED_KEY;
+        let reader: &mut dyn Read = &mut encrypted.as_slice();
+
+        let decrypted = MixReader::read_blowfish(reader);
+        assert!(decrypted.is_ok());
+        let decrypted = decrypted.unwrap();
+
+        let mut encrypted_again: Vec<u8> = vec![];
+        let res = MixWriter::write_blowfish(&mut encrypted_again, &decrypted);
+        assert!((res.is_ok()));
+        assert_eq!(encrypted_again.len(), encrypted.len());
+        let encrypted_again: BlowfishKeyEncrypted = encrypted_again.try_into().unwrap();
+
+        assert_eq!(encrypted, &encrypted_again);
     }
 }

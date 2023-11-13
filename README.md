@@ -12,7 +12,7 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] MIX
     - [x] Core
     - [x] Blowfish/RSA
-    - [ ] LMD/GMD
+    - [x] LMD/GMD
     - [ ] SHA1
   - [ ] PAL
   - [ ] SHP
@@ -20,6 +20,7 @@ Structures and utilities for C&C formats written in Rust.
   - [x] CSF Builder
   - [ ] MIX Multitool
   - [ ] MIX DB Multitool
+  - [ ] Mod Builder
   - [ ] PAL Builder
 - Other
   - [ ] Readme
