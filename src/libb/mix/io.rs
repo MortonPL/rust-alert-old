@@ -3,7 +3,6 @@
 use std::{
     io::{Read, Write},
     mem::size_of,
-    str::FromStr,
 };
 
 use blowfish::{
@@ -12,8 +11,9 @@ use blowfish::{
 };
 use num_bigint::BigUint;
 
-use crate::mix::{
-    BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags, MixIndexEntry,
+use crate::{
+    defaultarray,
+    mix::{BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags, MixIndexEntry},
 };
 
 /// Prefix of every LMD header.
@@ -27,14 +27,14 @@ pub const ENCRYPTED_BLOWFISH_KEY_SIZE: usize = 80;
 /// Blowfish block size.
 pub const BLOWFISH_BLOCK_SIZE: usize = 8;
 /// Exponent (e) of Westwood's "fast"/RSA key.
-pub const EXPONENT: &[u8] = &[1, 0, 1];
+pub const FAST_E: &[u8] = &[1, 0, 1];
 /// Modulus (n) of Westwood's "fast"/RSA key.
-pub const MODULUS: &[u8] = &[
+pub const FAST_N: &[u8] = &[
     21, 127, 67, 170, 61, 79, 251, 209, 230, 193, 176, 248, 106, 14, 221, 171, 74, 176, 130, 102,
     250, 84, 170, 232, 162, 63, 113, 81, 214, 96, 81, 86, 228, 252, 57, 109, 8, 218, 188, 81,
 ];
 /// Modular inverse (d) of Westwood's "fast"/RSA key.
-pub const INVERSE: &[u8] = &[
+pub const FAST_D: &[u8] = &[
     129, 48, 137, 130, 230, 244, 251, 161, 6, 87, 223, 27, 78, 39, 88, 67, 51, 212, 180, 74, 174,
     174, 208, 219, 91, 94, 16, 84, 124, 198, 34, 196, 71, 156, 19, 153, 188, 55, 86, 10,
 ];
@@ -240,25 +240,9 @@ impl MixReader {
     /// Read the encrypted blowfish key and decrypt it using a handmade RSA algorithm.
     fn read_blowfish(reader: &mut dyn Read) -> Result<BlowfishKey> {
         // Read the encrypted Blowfish key.
-        let mut buf = [0u8; ENCRYPTED_BLOWFISH_KEY_SIZE];
+        let mut buf: BlowfishKeyEncrypted = defaultarray!(BlowfishKeyEncrypted);
         reader.read_exact(&mut buf)?;
-        // Get the RSA/"fast" key from known constants.
-        let exponent = BigUint::from_bytes_le(EXPONENT);
-        let modulus = BigUint::from_bytes_le(MODULUS);
-        // Decrypt the key in 40 byte chunks.
-        let blowfish: Vec<u8> = buf
-            .chunks_exact(BLOWFISH_KEY_CHUNK_SIZE)
-            .flat_map(|x| {
-                BigUint::from_bytes_le(x)
-                    .modpow(&exponent, &modulus)
-                    .to_bytes_le()
-            })
-            .collect();
-        // Ensure that the result is exactly 56 bytes long.
-        let len = blowfish.len();
-        blowfish
-            .try_into()
-            .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
+        decrypt_blowfish(&buf)
     }
 }
 
@@ -298,65 +282,82 @@ impl MixWriter {
         Ok(())
     }
 
-    /// Encrypt the Blowfish key using a handmade RSA algorithm.
+    /// Encrypt and write the Blowfish key.
     fn write_blowfish(writer: &mut dyn Write, key: &BlowfishKey) -> Result<()> {
-        // Get the RSA/"fast" key from known constants.
-        let inverted = BigUint::from_bytes_le(INVERSE);
-        let modulus = BigUint::from_bytes_le(MODULUS);
-        // Encrypt the key in 40 byte chunks.
-        let blowfish: Vec<u8> = key
-            .chunks(BLOWFISH_KEY_CHUNK_SIZE)
-            .flat_map(|x| {
-                BigUint::from_bytes_le(x)
-                    .modpow(&inverted, &modulus)
-                    .to_bytes_le()
-            })
-            .collect();
-        // Ensure that the result is exactly 80 bytes long.
-        let len = blowfish.len();
-        let blowfish: BlowfishKeyEncrypted = blowfish
-            .try_into()
-            .or(Err(Error::WrongBlowfishSizeDecrypted(len)))?;
-        writer.write_all(&blowfish)?;
+        let encrypted = encrypt_blowfish(key)?;
+        writer.write_all(&encrypted)?;
         Ok(())
     }
 }
 
+/// Decrypt the Blowfish key using a handmade RSA algorithm.
+pub fn decrypt_blowfish(key: &BlowfishKeyEncrypted) -> Result<BlowfishKey> {
+    // Get the RSA/"fast" key from known constants.
+    let e = BigUint::from_bytes_le(FAST_E);
+    let n = BigUint::from_bytes_le(FAST_N);
+    // Decrypt the key in 40 byte chunks.
+    let key: Vec<u8> = key
+        .chunks_exact(BLOWFISH_KEY_CHUNK_SIZE)
+        .flat_map(|x| BigUint::from_bytes_le(x).modpow(&e, &n).to_bytes_le())
+        .collect();
+    // Ensure that the result is exactly 56 bytes long.
+    let len = key.len();
+    key.try_into()
+        .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
+}
+
+/// Encrypt the Blowfish key using a handmade RSA algorithm.
+pub fn encrypt_blowfish(key: &BlowfishKey) -> Result<BlowfishKeyEncrypted> {
+    // Get the RSA/"fast" key from known constants.
+    let d = BigUint::from_bytes_le(FAST_D);
+    let n = BigUint::from_bytes_le(FAST_N);
+    // Encrypt the key in 40 byte chunks.
+    let key: Vec<u8> = key
+        .chunks(BLOWFISH_KEY_CHUNK_SIZE - 1)
+        .flat_map(|x| BigUint::from_bytes_le(x).modpow(&d, &n).to_bytes_le())
+        .collect();
+    // Ensure that the result is exactly 80 bytes long.
+    let len = key.len();
+    key.try_into()
+        .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
+}
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
-    use crate::mix::{BlowfishKey, io::{BlowfishKeyEncrypted, MixReader, MixWriter}};
+    use crate::mix::{
+        io::{decrypt_blowfish, encrypt_blowfish, BlowfishKeyEncrypted},
+        BlowfishKey,
+    };
 
+    // Taken from multimd.mix
     const ENCRYPTED_KEY: &BlowfishKeyEncrypted = &[
-        31, 245, 211, 151, 220, 77, 151, 240, 232, 170, 197, 246, 40, 90, 199, 85, 148, 216, 142, 158,
-        120, 4, 198, 144, 196, 23, 145, 144, 181, 177, 143, 143, 28, 215, 81, 110, 83, 64, 84, 41, 42,
-        194, 69, 188, 141, 96, 189, 202, 60, 66, 183, 76, 236, 123, 9, 8, 42, 37, 44, 85, 142, 68, 81,
-        246, 102, 120, 25, 18, 35, 43, 174, 88, 226, 132, 96, 131, 253, 188, 57, 5,
+        31, 245, 211, 151, 220, 77, 151, 240, 232, 170, 197, 246, 40, 90, 199, 85, 148, 216, 142,
+        158, 120, 4, 198, 144, 196, 23, 145, 144, 181, 177, 143, 143, 28, 215, 81, 110, 83, 64, 84,
+        41, 42, 194, 69, 188, 141, 96, 189, 202, 60, 66, 183, 76, 236, 123, 9, 8, 42, 37, 44, 85,
+        142, 68, 81, 246, 102, 120, 25, 18, 35, 43, 174, 88, 226, 132, 96, 131, 253, 188, 57, 5,
     ];
-    
+
     const DECRYPTED_KEY: &BlowfishKey = &[
         171, 92, 165, 248, 18, 172, 78, 242, 212, 163, 254, 255, 93, 40, 18, 170, 67, 107, 152, 11,
-        192, 215, 163, 33, 232, 190, 204, 198, 24, 194, 53, 84, 185, 26, 134, 104, 114, 41, 79, 178,
-        147, 188, 131, 20, 170, 220, 77, 119, 142, 102, 227, 196, 177, 113, 68, 247,
+        192, 215, 163, 33, 232, 190, 204, 198, 24, 194, 53, 84, 185, 26, 134, 104, 114, 41, 79,
+        178, 147, 188, 131, 20, 170, 220, 77, 119, 142, 102, 227, 196, 177, 113, 68, 247,
     ];
 
     #[test]
-    /// Test Blowfish key encryption/decryption.
-    fn encrypt_decrypt_blowfish() {
-        let encrypted = ENCRYPTED_KEY;
-        let reader: &mut dyn Read = &mut encrypted.as_slice();
+    /// Test Blowfish key encryption.
+    fn blowfish_encrypt() {
+        let encrypted = encrypt_blowfish(DECRYPTED_KEY);
+        assert!(encrypted.is_ok());
 
-        let decrypted = MixReader::read_blowfish(reader);
+        assert_eq!(ENCRYPTED_KEY, &encrypted.unwrap());
+    }
+
+    #[test]
+    /// Test Blowfish key decryption.
+    fn blowfish_decrypt() {
+        let decrypted = decrypt_blowfish(ENCRYPTED_KEY);
         assert!(decrypted.is_ok());
-        let decrypted = decrypted.unwrap();
 
-        let mut encrypted_again: Vec<u8> = vec![];
-        let res = MixWriter::write_blowfish(&mut encrypted_again, &decrypted);
-        assert!((res.is_ok()));
-        assert_eq!(encrypted_again.len(), encrypted.len());
-        let encrypted_again: BlowfishKeyEncrypted = encrypted_again.try_into().unwrap();
-
-        assert_eq!(encrypted, &encrypted_again);
+        assert_eq!(DECRYPTED_KEY, &decrypted.unwrap());
     }
 }
