@@ -305,8 +305,7 @@ impl MixWriter {
         key: &BlowfishKey,
     ) -> Result<()> {
         mix.files.sort_keys();
-        let size =
-            size_of::<u16>() + size_of::<u32>() + mix.files.len() * size_of::<MixIndexEntry>();
+        let size = size_of::<u16>() + size_of::<u32>() + mix.get_index_size();
         let fullsize = size.next_multiple_of(BLOWFISH_BLOCK_SIZE);
         let pad = fullsize - size;
         let mut buf = Vec::with_capacity(fullsize);

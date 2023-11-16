@@ -207,6 +207,14 @@ impl Mix {
         self.checksum = Some(hasher.finalize().into());
     }
 
+    pub fn is_compact(&self) -> bool {
+        !self.files.values().any(|f| !f.residue.is_empty()) || !self.residue.is_empty()
+    }
+
+    pub fn get_index_size(&self) -> usize {
+        self.files.len() * std::mem::size_of::<MixIndexEntry>()
+    }
+
     /// Calculate MIX body size, summing all files and residues.
     pub fn get_body_size(&self) -> usize {
         self.files
