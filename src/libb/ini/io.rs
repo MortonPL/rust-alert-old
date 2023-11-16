@@ -68,11 +68,11 @@ impl IniReader {
 
     /// Parse one line of text into a section header, key-value entry or an empty line.
     fn parse_line(line: String, row: usize) -> Result<LineParseResultEnum> {
-        let line = line.split(';').next();
-        if line.is_none() {
-            return Ok(LineParseResultEnum::Empty);
-        }
-        let line = line.unwrap();
+        let line = match line.split(';').next() {
+            Some(x) => x,
+            None => return Ok(LineParseResultEnum::Empty),
+        };
+
         // Section
         if line.starts_with('[') {
             return line
@@ -123,7 +123,10 @@ impl IniWriter {
 #[cfg(test)]
 mod tests {
     mod parse_line {
-        use crate::ini::io::{Error, IniReader, LineParseResultEnum};
+        use crate::{
+            ini::io::{Error, IniReader, LineParseResultEnum},
+            unwrap_assert,
+        };
 
         #[test]
         fn parse_line_entry_ok() {
@@ -133,7 +136,7 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Entry(k, v));
+            unwrap_assert!(out, LineParseResultEnum::Entry(k, v));
         }
 
         #[test]
@@ -144,7 +147,7 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Entry(k, v));
+            unwrap_assert!(out, LineParseResultEnum::Entry(k, v));
         }
 
         #[test]
@@ -155,7 +158,7 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Entry(k, v));
+            unwrap_assert!(out, LineParseResultEnum::Entry(k, v));
         }
 
         #[test]
@@ -204,7 +207,7 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Section(s));
+            unwrap_assert!(out, LineParseResultEnum::Section(s));
         }
 
         #[test]
@@ -214,7 +217,7 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Section(s));
+            unwrap_assert!(out, LineParseResultEnum::Section(s));
         }
 
         #[test]
@@ -232,12 +235,15 @@ mod tests {
 
             let out = IniReader::parse_line(line, 0);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), LineParseResultEnum::Empty);
+            unwrap_assert!(out, LineParseResultEnum::Empty);
         }
     }
 
     mod read_file {
-        use crate::ini::io::{Error, IniFile, IniReader, IniSection};
+        use crate::{
+            ini::io::{Error, IniFile, IniReader, IniSection},
+            unwrap_assert,
+        };
         use std::io::BufRead;
 
         #[test]
@@ -252,7 +258,7 @@ mod tests {
 
             let out = IniReader::read_file(file);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), expected);
+            unwrap_assert!(out, expected);
         }
 
         #[test]
@@ -269,7 +275,7 @@ mod tests {
 
             let out = IniReader::read_file(file);
             assert!(out.is_ok());
-            assert_eq!(out.unwrap(), expected);
+            unwrap_assert!(out, expected);
         }
 
         #[test]
@@ -284,7 +290,10 @@ mod tests {
     }
 
     mod write_file {
-        use crate::ini::{io::IniWriter, IniFile, IniSection};
+        use crate::{
+            ini::{io::IniWriter, IniFile, IniSection},
+            unwrap_assert,
+        };
 
         #[test]
         fn write_section_ok() {
@@ -297,7 +306,7 @@ mod tests {
 
             let out = IniWriter::write_file(&ini, &mut writer);
             assert!(out.is_ok());
-            assert_eq!(std::str::from_utf8(&writer).unwrap(), expected);
+            unwrap_assert!(std::str::from_utf8(&writer), expected);
         }
 
         #[test]
@@ -314,7 +323,7 @@ mod tests {
 
             let out = IniWriter::write_file(&ini, &mut writer);
             assert!(out.is_ok());
-            assert_eq!(std::str::from_utf8(&writer).unwrap(), expected);
+            unwrap_assert!(std::str::from_utf8(&writer), expected);
         }
     }
 }

@@ -50,3 +50,19 @@ macro_rules! defaultarray {
         [0u8; std::mem::size_of::<$type>()]
     };
 }
+
+/// Unwraps first argument and uses `assert_eq!()`.
+#[macro_export]
+macro_rules! unwrap_assert {
+    ($l:expr, $r:expr) => {
+        assert_eq!($l.unwrap(), $r)
+    };
+}
+
+/// Unwraps first argument and uses `assert_eq!()`.
+#[macro_export]
+macro_rules! unwrap_ref_assert {
+    ($l:expr, $r:expr) => {
+        assert_eq!(&$l.unwrap(), $r)
+    };
+}

@@ -31,6 +31,8 @@ pub enum Error {
     MixDbError(#[from] crate::mix::db::Error),
     #[error("Expected a null terminated string, but couldn't find null")]
     NoNullTermination(usize),
+    #[error("Expected a null terminated string description, but couldn't find null")]
+    NoNullDescTermination(usize),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -181,17 +183,28 @@ impl GlobalMixDbReader {
 
     pub fn read_database(buf: &[u8], mut ptr: usize) -> Result<(Vec<String>, usize)> {
         let mut strings = Vec::<String>::new();
-        let num_names = u32::from_le_bytes(buf[ptr..ptr + 4].try_into().unwrap()); // Won't panic.
+        let num_names = u32::from_le_bytes(
+            buf[ptr..ptr + 4]
+                .try_into()
+                .unwrap_or_else(|_| unreachable!()),
+        ); // Won't panic: caller guarantees there are at least 4 bytes.
         ptr += 4;
         for _ in 0..num_names {
             let cut = buf[ptr..]
                 .iter()
                 .position(|x| *x == 0)
                 .ok_or(Error::NoNullTermination(ptr))?;
-            strings.push(String::from_utf8(buf[ptr..ptr + cut].try_into().unwrap())?); // Won't panic.
+            strings.push(String::from_utf8(
+                buf[ptr..ptr + cut]
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!()),
+            )?); // Won't panic: just slicing a buffer.
             ptr += cut + 1;
             // Just advance the pointer, we don't need the description.
-            ptr += buf[ptr..].iter().position(|x| *x == 0).unwrap() + 1;
+            match buf[ptr..].iter().position(|x| *x == 0) {
+                Some(x) => ptr += x,
+                _ => return Err(Error::NoNullDescTermination(ptr)),
+            }
         }
 
         Ok((strings, ptr))

@@ -56,7 +56,7 @@ bitflags! {
 
 impl From<u16> for MixHeaderFlags {
     fn from(value: u16) -> Self {
-        Self::from_bits(value).unwrap()
+        Self::from_bits(value).unwrap_or_else(|| unreachable!())
     }
 }
 
@@ -68,7 +68,7 @@ impl From<MixHeaderFlags> for u16 {
 
 impl From<u16> for MixHeaderExtraFlags {
     fn from(value: u16) -> Self {
-        Self::from_bits(value).unwrap()
+        Self::from_bits(value).unwrap_or_else(|| unreachable!())
     }
 }
 

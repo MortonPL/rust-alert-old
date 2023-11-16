@@ -237,7 +237,10 @@ impl From<CsfString> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::csf::{CsfLabel, CsfStringtable};
+    use crate::{
+        csf::{CsfLabel, CsfStringtable},
+        unwrap_assert,
+    };
 
     #[test]
     /// Test label creation.
@@ -297,7 +300,7 @@ mod tests {
         let actual = csf.lookup(&label);
 
         assert!(actual.is_some());
-        assert_eq!(actual.unwrap(), &string);
+        unwrap_assert!(actual, &string);
 
         let actual = csf.lookup("NoString");
         assert!(actual.is_none());
@@ -344,9 +347,9 @@ mod tests {
 
         let label = CsfLabel::new("Label", string);
 
-        let expected = label.strings.first().unwrap();
+        let expected = label.strings.first().unwrap_or_else(|| unreachable!());
         let actual = label.get_first();
         assert!(actual.is_some());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 }

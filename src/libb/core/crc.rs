@@ -20,10 +20,11 @@ pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
 
 /// "CRC" function used in TD and RA.
 pub fn crc_td(string: impl AsRef<str>) -> i32 {
-    let mut string_upper = string.as_ref().to_uppercase().into_bytes();
-    if string_upper.is_empty() {
+    let string = string.as_ref();
+    if string.is_empty() {
         return 0;
     }
+    let mut string_upper = string.to_uppercase().into_bytes();
     // Pad the string so that its length is a multiple of 4.
     let missing = match string_upper.len() % 4 {
         1 => 3,
@@ -34,31 +35,32 @@ pub fn crc_td(string: impl AsRef<str>) -> i32 {
     // Algorithm proper; Read 32bit chunks, rotate and sum.
     string_upper
         .chunks_exact(size_of::<u32>())
-        .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+        .map(|b| u32::from_le_bytes(b.try_into().unwrap_or_else(|_| unreachable!())))
         .fold(0u32, |acc, x| x.wrapping_add(acc.rotate_left(1))) as i32
 }
 
 /// CRC function used in TS, FS, RA2 and YR.
 pub fn crc_ts(string: impl AsRef<str>) -> i32 {
-    let mut string_upper = string.as_ref().to_uppercase();
-    let len = string_upper.len();
+    let string = string.as_ref();
+    let len = string.len();
     if len == 0 {
         return 0;
     }
+    let mut string_upper = string.to_uppercase().into_bytes();
     // Magic WW padding.
     let remainder = len % 4;
     if remainder != 0 {
         // First pad with the pad size.
-        string_upper.push(remainder as u8 as char);
+        string_upper.push(remainder as u8);
         // Then pad with the beginning of the last 4-byte chunk.
         let padding_idx = (len >> 2) << 2;
-        let padding = string_upper.chars().nth(padding_idx).unwrap();
+        let padding = string_upper[padding_idx];
         for _ in 0..(3 - remainder) {
             string_upper.push(padding);
         }
     }
     // Standard CRC32.
-    crc32fast::hash(string_upper.as_bytes()) as i32
+    crc32fast::hash(&string_upper) as i32
 }
 
 #[cfg(test)]

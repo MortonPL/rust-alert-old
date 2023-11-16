@@ -142,8 +142,8 @@ impl CsfReader {
         let mut buf = vec![0u8; len * 2];
         reader.read_exact(&mut buf)?;
         let buf: Vec<u16> = buf
-            .chunks(size_of::<u16>())
-            .map(|x| !u16::from_le_bytes(x.try_into().unwrap()))
+            .chunks_exact(size_of::<u16>())
+            .map(|x| !u16::from_le_bytes(x.try_into().unwrap_or_else(|_| unreachable!())))
             .collect();
 
         Ok(String::from_utf16(&buf)?)
@@ -202,7 +202,7 @@ impl CsfWriter {
         };
         // Write string info.
         writer.write_all(prefix)?;
-        let utf16 = Self::encode_utf16_string(&string.value)?;
+        let utf16 = Self::encode_utf16_string(&string.value);
         writer.write_all(&((utf16.len() / 2) as u32).to_le_bytes())?;
         // Write string data.
         writer.write_all(&utf16)?;
@@ -215,11 +215,11 @@ impl CsfWriter {
     }
 
     /// Encode (by bitwise negation) and write a UTF-16 string.
-    fn encode_utf16_string(string: &str) -> Result<Vec<u8>> {
-        Ok(string
+    fn encode_utf16_string(string: &str) -> Vec<u8> {
+        string
             .encode_utf16()
             .flat_map(|x| (!x).to_le_bytes())
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>()
     }
 }
 
@@ -227,9 +227,12 @@ impl CsfWriter {
 mod tests {
     use std::{collections::HashMap, io::Read};
 
-    use crate::csf::{
-        io::{CsfReader, CsfWriter},
-        CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum,
+    use crate::{
+        csf::{
+            io::{CsfReader, CsfWriter},
+            CsfLabel, CsfLanguageEnum, CsfString, CsfStringtable, CsfVersionEnum,
+        },
+        unwrap_assert,
     };
 
     fn make_string(string: impl Into<String>, extra_string: impl Into<String>) -> Vec<u8> {
@@ -237,7 +240,7 @@ mod tests {
         let wide: String = extra_string.into();
         let first = if !wide.is_empty() { 'W' } else { ' ' };
         let mut buf = vec![first as u8, b'R', b'T', b'S', string.len() as u8, 0, 0, 0];
-        buf.extend(CsfWriter::encode_utf16_string(&string).unwrap());
+        buf.extend(CsfWriter::encode_utf16_string(&string));
         if !wide.is_empty() {
             buf.extend(vec![wide.len() as u8, 0, 0, 0]);
             buf.extend(wide.as_bytes());
@@ -285,7 +288,7 @@ mod tests {
 
         dbg!(&actual);
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -303,7 +306,7 @@ mod tests {
         let actual = CsfReader::read_string(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -321,7 +324,7 @@ mod tests {
         let actual = CsfReader::read_label(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -340,7 +343,7 @@ mod tests {
         let actual = CsfReader::read_csf_header(reader);
 
         assert!(actual.is_ok());
-        let (csf, len) = actual.unwrap();
+        let (csf, len) = actual.unwrap_or_else(|_| unreachable!());
         assert_eq!(csf, expected);
         assert_eq!(len, expected_len);
     }
@@ -364,7 +367,7 @@ mod tests {
         let actual = CsfReader::read_file(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -376,12 +379,13 @@ mod tests {
         };
 
         let mut buf: Vec<u8> = vec![];
-        CsfWriter::write_string(&expected, &mut buf).unwrap();
+        let res = CsfWriter::write_string(&expected, &mut buf);
+        assert!(res.is_ok());
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::read_string(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -393,12 +397,13 @@ mod tests {
         };
 
         let mut buf: Vec<u8> = vec![];
-        CsfWriter::write_label(&expected, &mut buf).unwrap();
+        let res = CsfWriter::write_label(&expected, &mut buf);
+        assert!(res.is_ok());
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::read_label(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 
     #[test]
@@ -407,12 +412,13 @@ mod tests {
         let expected = CsfStringtable::default();
 
         let mut buf: Vec<u8> = vec![];
-        CsfWriter::write_csf_header(&expected, &mut buf).unwrap();
+        let res = CsfWriter::write_csf_header(&expected, &mut buf);
+        assert!(res.is_ok());
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::read_csf_header(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap().0, expected);
+        assert_eq!(actual.unwrap_or_else(|_| unreachable!()).0, expected);
     }
 
     #[test]
@@ -423,11 +429,12 @@ mod tests {
         expected.create_label("Label2", "String2");
 
         let mut buf: Vec<u8> = vec![];
-        CsfWriter::write_file(&expected, &mut buf).unwrap();
+        let res = CsfWriter::write_file(&expected, &mut buf);
+        assert!(res.is_ok());
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::read_file(reader);
 
         assert!(actual.is_ok());
-        assert_eq!(actual.unwrap(), expected);
+        unwrap_assert!(actual, expected);
     }
 }

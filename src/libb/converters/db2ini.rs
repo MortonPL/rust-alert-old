@@ -24,7 +24,8 @@ pub fn db2ini(db: &MixDatabase) -> IniFile {
 
 pub fn ini2db(ini: &IniFile) -> Result<MixDatabase> {
     let mut db = MixDatabase::default();
-    for (id, name) in ini.iter().flat_map(|(_, x)| x.iter()) {
+    let entries = ini.iter().flat_map(|(_, x)| x.iter());
+    for (id, name) in entries {
         let id = hex2int(id)?;
         db.names.insert(id, name.value.clone());
     }

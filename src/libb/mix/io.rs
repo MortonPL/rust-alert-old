@@ -131,9 +131,11 @@ impl MixReader {
                 let buf = block.as_slice();
                 blowfish = Some((key, cipher));
                 // Read header.
-                num_files = u16::from_le_bytes(buf[0..2].try_into().unwrap());
-                body_size = u32::from_le_bytes(buf[2..6].try_into().unwrap());
-                remaining = buf[6..8].try_into().unwrap();
+                num_files =
+                    u16::from_le_bytes(buf[0..2].try_into().unwrap_or_else(|_| unreachable!()));
+                body_size =
+                    u32::from_le_bytes(buf[2..6].try_into().unwrap_or_else(|_| unreachable!()));
+                remaining = buf[6..8].try_into().unwrap_or_else(|_| unreachable!());
             } else {
                 // Just read header.
                 reader.read_exact(&mut buf)?;
@@ -324,9 +326,12 @@ pub fn encrypt_blowfish(key: &BlowfishKey) -> Result<BlowfishKeyEncrypted> {
 
 #[cfg(test)]
 mod tests {
-    use crate::mix::{
-        io::{decrypt_blowfish, encrypt_blowfish, BlowfishKeyEncrypted},
-        BlowfishKey,
+    use crate::{
+        mix::{
+            io::{decrypt_blowfish, encrypt_blowfish, BlowfishKeyEncrypted},
+            BlowfishKey,
+        },
+        unwrap_ref_assert,
     };
 
     // Taken from multimd.mix
@@ -347,17 +352,17 @@ mod tests {
     /// Test Blowfish key encryption.
     fn blowfish_encrypt() {
         let encrypted = encrypt_blowfish(DECRYPTED_KEY);
-        assert!(encrypted.is_ok());
 
-        assert_eq!(ENCRYPTED_KEY, &encrypted.unwrap());
+        assert!(encrypted.is_ok());
+        unwrap_ref_assert!(encrypted, ENCRYPTED_KEY);
     }
 
     #[test]
     /// Test Blowfish key decryption.
     fn blowfish_decrypt() {
         let decrypted = decrypt_blowfish(ENCRYPTED_KEY);
-        assert!(decrypted.is_ok());
 
-        assert_eq!(DECRYPTED_KEY, &decrypted.unwrap());
+        assert!(decrypted.is_ok());
+        unwrap_ref_assert!(decrypted, DECRYPTED_KEY);
     }
 }
