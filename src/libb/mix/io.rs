@@ -6,7 +6,7 @@ use std::{
 };
 
 use blowfish::{
-    cipher::{generic_array::GenericArray, BlockDecrypt},
+    cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt},
     Blowfish,
 };
 use num_bigint::BigUint;
@@ -252,12 +252,15 @@ impl MixReader {
 pub struct MixWriter {}
 
 impl MixWriter {
-    pub fn write_file(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
+    pub fn write_file(writer: &mut dyn Write, mix: &mut Mix, force_new_format: bool) -> Result<()> {
         Self::write_header(writer, mix, force_new_format)?;
-
-        todo!();
-        // write_index();
-        // write_bodies();
+        if let Some(key) = mix.blowfish_key {
+            Self::write_index_encrypted(writer, mix, &key)?;
+        } else {
+            Self::write_index(writer, mix)?;
+        }
+        Self::write_bodies(writer, mix)?;
+        Ok(())
     }
 
     pub fn write_header(writer: &mut dyn Write, mix: &Mix, force_new_format: bool) -> Result<()> {
@@ -269,7 +272,7 @@ impl MixWriter {
             writer.write_all(&flags.to_le_bytes())?;
             // New MIX format (>=RA).
             if let Some(key) = mix.blowfish_key {
-                // Encrypt and write header.
+                // Write key only; header data and index have to be handled together later.
                 MixWriter::write_blowfish(writer, &key)?;
             } else {
                 // Just write header.
@@ -281,6 +284,59 @@ impl MixWriter {
             writer.write_all(&(mix.files.len() as u16).to_le_bytes())?;
             writer.write_all(&mix.body_size.to_le_bytes())?;
         }
+        Ok(())
+    }
+
+    pub fn write_index_encrypted(
+        writer: &mut dyn Write,
+        mix: &mut Mix,
+        key: &BlowfishKey,
+    ) -> Result<()> {
+        mix.files.sort_keys();
+        let size =
+            size_of::<u16>() + size_of::<u32>() + mix.files.len() * size_of::<MixIndexEntry>();
+        let fullsize = size.next_multiple_of(BLOWFISH_BLOCK_SIZE);
+        let pad = fullsize - size;
+        let mut buf = Vec::with_capacity(fullsize);
+        buf.write_all(&(mix.files.len() as u16).to_le_bytes())?;
+        buf.write_all(&(mix.get_body_size() as u32).to_le_bytes())?;
+        for file in mix.files.values() {
+            Self::write_index_entry(&mut buf, &file.index)?;
+        }
+        buf.extend_from_slice(&[0u8; BLOWFISH_BLOCK_SIZE][0..pad]);
+        let mut cipher = Blowfish::bc_init_state();
+        cipher.bc_expand_key(key);
+        // Cut the header into Blowfish blocks and encrypt.
+        let mut blocks: Vec<GenericArray<u8, _>> = buf
+            .chunks_exact(BLOWFISH_BLOCK_SIZE)
+            .map(|c| GenericArray::from_slice(c).to_owned())
+            .collect();
+        cipher.encrypt_blocks(blocks.as_mut_slice());
+        writer.write_all(&blocks.concat())?;
+        Ok(())
+    }
+
+    pub fn write_index(writer: &mut dyn Write, mix: &mut Mix) -> Result<()> {
+        mix.files.sort_keys();
+        for file in mix.files.values() {
+            Self::write_index_entry(writer, &file.index)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_index_entry(writer: &mut dyn Write, entry: &MixIndexEntry) -> Result<()> {
+        writer.write_all(&entry.id.to_le_bytes())?;
+        writer.write_all(&entry.offset.to_le_bytes())?;
+        writer.write_all(&entry.size.to_le_bytes())?;
+        Ok(())
+    }
+
+    pub fn write_bodies(writer: &mut dyn Write, mix: &Mix) -> Result<()> {
+        for file in mix.files.values() {
+            writer.write_all(&file.residue)?;
+            writer.write_all(&file.body)?;
+        }
+        writer.write_all(&mix.residue)?;
         Ok(())
     }
 

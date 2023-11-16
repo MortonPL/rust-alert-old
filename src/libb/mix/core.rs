@@ -17,6 +17,7 @@ pub const LMD_KEY_TD: i32 = 0x54C2D545;
 pub const LMD_KEY_TS: i32 = 0x366E051F;
 
 pub type BlowfishKey = [u8; BLOWFISH_KEY_SIZE];
+pub type Checksum = [u8; CHECKSUM_SIZE];
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -94,7 +95,7 @@ pub struct Mix {
     /// Optional, decrypted Blowfish key used to encrypt the MIX header. Always 56 bytes long. Used in RA and up.
     pub blowfish_key: Option<BlowfishKey>,
     /// Optional, SHA1 checksum of the entire MIX body. Always 20 bytes long. Used in RA and up.
-    pub checksum: Option<[u8; CHECKSUM_SIZE]>,
+    pub checksum: Option<Checksum>,
     /// Leftover bytes after the last file in the body.
     pub residue: Vec<u8>,
 }
@@ -195,6 +196,14 @@ impl Mix {
         }
     }
 
+    /// Calculate MIX body size, summing all files and residues.
+    pub fn get_body_size(&self) -> usize {
+        self.files
+            .values()
+            .fold(0, |acc, x| acc + x.body.len() + x.residue.len())
+            + self.residue.len()
+    }
+
     /// Find the offset *after* the last file ends.
     fn find_last_offset(&self) -> u32 {
         self.files
@@ -205,7 +214,7 @@ impl Mix {
 }
 
 /// A MIX file entry contains an index entry used for identification, actual body
-/// and residue bytes an optional name obtained from LMD/GMD.
+/// and residue bytes.
 #[derive(Debug, Default)]
 pub struct MixFileEntry {
     pub index: MixIndexEntry,

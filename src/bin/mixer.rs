@@ -15,7 +15,7 @@ use rust_alert::{
     mix::{
         db::{io::LocalMixDbReader, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
         io::{MixReader, MixWriter},
-        BlowfishKey, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
+        BlowfishKey, Checksum, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
     },
     printoptionmapln,
 };
@@ -229,7 +229,7 @@ fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
 
     let lmd = args.lmd.then(MixDatabase::default);
     mix.recalc();
-    MixWriter::write_file(&mut writer, &mix, new_mix)?;
+    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
     Ok(())
 }
 
@@ -246,7 +246,7 @@ fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
         .create(true)
         .truncate(true)
         .open(args.output.as_ref().unwrap_or(&args.input))?;
-    MixWriter::write_file(&mut writer, &mix, new_mix)?;
+    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
     Ok(())
 }
 
@@ -319,19 +319,19 @@ fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
             mix.blowfish_key,
             |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat()
         );
-        println!(
-            "Checksum:           {:?}",
-            mix.flags.contains(MixHeaderFlags::CHECKSUM)
-        );
+        printoptionmapln!("Checksum (SHA1):    {:?}", mix.checksum, |x: Checksum| x
+            .map(|c| format!("{:X?}", c))
+            .concat());
         println!("Has LMD:            {}", has_lmd);
     }
 
     if !args.no_index {
         println!();
-        println!("File Offset Size");
+        println!("{: <16} {: >8} {: >8}", "File", "Offset", "Size");
+        println!("{:=<34}", "");
         mix.files.values().for_each(|f| {
             println!(
-                "{}: {:?} {:?}",
+                "{: <16} {: >8?} {: >8?}",
                 mixdb.get_name_or_id(f.index.id),
                 f.index.offset,
                 f.index.size
