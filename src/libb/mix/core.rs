@@ -4,6 +4,7 @@ use std::{fs::read, path::Path};
 
 use bitflags::bitflags;
 use indexmap::IndexMap;
+use sha1::{Sha1, Digest};
 
 use crate::core::{crc, GameEnum};
 
@@ -194,6 +195,16 @@ impl Mix {
             self.body_size += file.index.size;
             file.residue.clear();
         }
+    }
+
+    pub fn calc_checksum(&mut self) {
+        let mut hasher = Sha1::new();
+        for file in self.files.values() {
+            hasher.update(&file.residue);
+            hasher.update(&file.body);
+        }
+        hasher.update(&self.residue);
+        self.checksum = Some(hasher.finalize().into());
     }
 
     /// Calculate MIX body size, summing all files and residues.

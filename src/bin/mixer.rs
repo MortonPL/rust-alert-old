@@ -93,6 +93,8 @@ struct BuildArgs {
 struct ChecksumArgs {
     /// Path to an input MIX file.
     input: PathBuf,
+    /// Path to an output MIX file. Same as input by default.
+    output: Option<PathBuf>,
     /// Remove the checksum instead.
     #[arg(short, long, default_value_t = false)]
     remove: bool,
@@ -234,6 +236,21 @@ fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
 }
 
 fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
+    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
+    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
+    if args.remove {
+        mix.checksum = None;
+        mix.flags.remove(MixHeaderFlags::CHECKSUM);
+    } else {
+        mix.calc_checksum();
+        mix.flags.insert(MixHeaderFlags::CHECKSUM);
+    }
+    let mut writer = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(args.output.as_ref().unwrap_or(&args.input))?;
+    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
     Ok(())
 }
 

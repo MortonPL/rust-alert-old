@@ -16,6 +16,8 @@ use crate::{
     mix::{BlowfishKey, Mix, MixFileEntry, MixHeaderExtraFlags, MixHeaderFlags, MixIndexEntry},
 };
 
+use super::CHECKSUM_SIZE;
+
 /// Prefix of every LMD header.
 pub const LMD_PREFIX: &[u8; 32] = b"XCC by Olaf van der Spek\x1a\x04\x17\x27\x10\x19\x80\x00";
 /// Size of the entire LMD header.
@@ -96,9 +98,15 @@ impl MixReader {
         }
         // Read the final byte residue.
         let residue = body_size - pos;
-        let mut buf: Vec<u8> = vec![0u8; residue as usize];
+        let mut buf = vec![0u8; residue as usize];
         reader.read_exact(&mut buf)?;
         mix.residue = buf;
+        // Read the checksum if available.
+        if mix.flags.contains(MixHeaderFlags::CHECKSUM) {
+            let mut buf = vec![0u8; CHECKSUM_SIZE];
+            reader.read_exact(&mut buf)?;
+            mix.checksum = Some(buf.try_into().unwrap_or_else(|_| unreachable!()));
+        }
 
         Ok(mix)
     }
@@ -260,6 +268,10 @@ impl MixWriter {
             Self::write_index(writer, mix)?;
         }
         Self::write_bodies(writer, mix)?;
+        writer.write_all(&mix.residue)?;
+        if let Some(checksum) = mix.checksum {
+            writer.write_all(&checksum)?;
+        }
         Ok(())
     }
 
@@ -331,12 +343,12 @@ impl MixWriter {
         Ok(())
     }
 
-    pub fn write_bodies(writer: &mut dyn Write, mix: &Mix) -> Result<()> {
+    pub fn write_bodies(writer: &mut dyn Write, mix: &mut Mix) -> Result<()> {
+        mix.files.sort_by(|_, v1, _, v2| v1.index.offset.cmp(&v2.index.offset));
         for file in mix.files.values() {
             writer.write_all(&file.residue)?;
             writer.write_all(&file.body)?;
         }
-        writer.write_all(&mix.residue)?;
         Ok(())
     }
 
