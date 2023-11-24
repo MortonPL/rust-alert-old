@@ -412,7 +412,7 @@ fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
         println!("{:=<47}", "");
         for f in mix.index.values() {
             println!(
-                "{: <16} {:0<8X} {: >10?} {: >10?}",
+                "{: <16} {:0>8X} {: >10?} {: >10?}",
                 mixdb.get_name(f.id).unwrap_or(&String::default()),
                 f.id,
                 f.offset,

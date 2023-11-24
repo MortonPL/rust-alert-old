@@ -160,12 +160,23 @@ impl Mix {
     }
 
     /// Recalculate the MIX index and compact the MIX. Previous order of file offsets might not be preserved.
-    /// Any data not covered by indexed files willbe lost.
+    /// Any data not covered by indexed files will be lost.
     pub fn recalc(&mut self) {
-
-
-
-        todo!() // TODO
+        // Dynamic array size magic below: we're deleting useless space between files.
+        self.sort_by_offset();
+        let mut ptr: i64 = 0;
+        let mut drained: i64 = 0;
+        for file in self.index.values_mut() {
+            // How big is the gap between the end of the previous file and the start of the current one?
+            let gap = file.offset as i64 - drained - ptr;
+            if gap > 0 {
+                self.body.drain(((ptr) as usize)..((ptr + gap) as usize));
+                drained += gap;
+            }
+            ptr += file.size as i64 + gap;
+            file.offset -= drained as u32;
+        }
+        self.sort_by_id();
     }
 
     /// Sort MIX index by ascending ID.
