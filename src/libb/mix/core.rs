@@ -4,7 +4,7 @@ use std::{fs::read, path::Path};
 
 use bitflags::bitflags;
 use indexmap::IndexMap;
-use sha1::{Sha1, Digest};
+use sha1::{Digest, Sha1};
 
 use crate::core::{crc, GameEnum};
 
@@ -29,7 +29,7 @@ pub enum Error {
     #[error("Path {0} doesn't point to a file")]
     NoFileName(Box<Path>),
     #[error("Attempted to overwrite file {0:?}, which is not allowed")]
-    FileOverwrite(MixFileEntry),
+    FileOverwrite(MixIndexEntry),
     #[error("Failed to convert a file path to a string, because it's not valid Unicode")]
     OsStrInvalidUnicode,
 }
@@ -84,174 +84,171 @@ impl From<MixHeaderExtraFlags> for u16 {
 #[derive(Debug, Default)]
 pub struct Mix {
     /// Helper field; does the MIX have flags in the header?
-    pub is_new_mix: bool,
+    pub is_new_format: bool,
     /// Contain information whether the MIX is encrypted/checksummed. Used in RA and up.
     pub flags: MixHeaderFlags,
     /// Always zero in vanilla files. Not advised to be non-zero, as some tools may depend on it. Used in RA and up.
     pub extra_flags: MixHeaderExtraFlags,
     /// Map of files in the MIX, indexed by CRC of their names.
-    pub files: IndexMap<i32, MixFileEntry>,
+    pub index: IndexMap<i32, MixIndexEntry>,
+    /// BLOB MIX body.
+    pub body: Vec<u8>,
     /// Declared MIX body size (not counting the header/index). Should match reality, even if YR seems to ignore it.
-    pub body_size: u32,
+    pub declared_body_size: u32,
     /// Optional, decrypted Blowfish key used to encrypt the MIX header. Always 56 bytes long. Used in RA and up.
     pub blowfish_key: Option<BlowfishKey>,
     /// Optional, SHA1 checksum of the entire MIX body. Always 20 bytes long. Used in RA and up.
     pub checksum: Option<Checksum>,
-    /// Leftover bytes after the last file in the body.
-    pub residue: Vec<u8>,
 }
 
 impl Mix {
-    pub fn get_file(&self, id: i32) -> Option<&Vec<u8>> {
-        self.files.get(&id).map(|x| &x.body)
+    /// Get file contents by ID.
+    pub fn get_file(&self, id: i32) -> Option<&[u8]> {
+        self.index
+            .get(&id)
+            .map(|f| &self.body[(f.offset as usize)..(f.offset as usize + f.size as usize)])
     }
 
-    pub fn get_file_mut(&mut self, id: i32) -> Option<&mut Vec<u8>> {
-        self.files.get_mut(&id).map(|x| &mut x.body)
-    }
-
-    /// Add a file from path at the end of the MIX. Overwriting a file raises an error.
-    pub fn add_file_path(&mut self, path: impl AsRef<Path>) -> Result<()> {
-        let data = read(&path)?;
-        let len = data.len() as u32;
-        let path: &Path = path.as_ref();
-        let mut file = MixFileEntry::new(
-            crc(
-                path.file_name()
-                    .ok_or(Error::NoFileName(path.into()))?
-                    .to_str()
-                    .ok_or(Error::OsStrInvalidUnicode)?,
-                GameEnum::YR, // TODO not always YR
-            ),
-            data,
-            vec![],
-        );
-        file.index.offset = self.find_last_offset();
-        if let Some(f) = self.files.insert(file.index.id, file) {
-            Err(Error::FileOverwrite(f))?
-        }
-        self.body_size += len;
-        Ok(())
+    /// Get mutable file contents by ID.
+    pub fn get_file_mut(&mut self, id: i32) -> Option<&mut [u8]> {
+        self.index
+            .get(&id)
+            .map(|f| &mut self.body[(f.offset as usize)..(f.offset as usize + f.size as usize)])
     }
 
     /// Add a file from raw data at the end of the MIX. Overwriting a file raises an error.
     pub fn add_file_raw(&mut self, data: Vec<u8>, id: i32) -> Result<()> {
-        let len = data.len() as u32;
-        let mut file = MixFileEntry::new(id, data, vec![]);
-        file.index.offset = self.find_last_offset();
-        if let Some(f) = self.files.insert(file.index.id, file) {
+        let size = data.len() as u32;
+        let file = MixIndexEntry::new(id, self.find_last_offset(), size);
+        if let Some(f) = self.index.insert(file.id, file) {
             Err(Error::FileOverwrite(f))?
         }
-        self.body_size += len;
+        self.body.extend(data);
+
         Ok(())
     }
 
-    /// Forcibly add a file from path at the end of the MIX. Overwriting a file may raise an error.
-    /// MIX integrity such as body size, index offsets, countigous file data are not guaranteed.
-    /// Added file offset will not be set.
-    pub fn force_file_path(&mut self, path: impl AsRef<Path>, allow_overwrite: bool) -> Result<()> {
-        let data = read(&path)?;
+    /// Add a file from path at the end of the MIX. Overwriting a file may raise an error.
+    pub fn add_file_path(&mut self, path: impl AsRef<Path>, crc_version: GameEnum, allow_overwrite: bool) -> Result<()> {
+        let mut data = read(&path)?;
         let path: &Path = path.as_ref();
-        let file = MixFileEntry::new(
-            crc(
-                path.file_name()
-                    .ok_or(Error::NoFileName(path.into()))?
-                    .to_str()
-                    .ok_or(Error::OsStrInvalidUnicode)?,
-                GameEnum::YR, // TODO not always YR
-            ),
-            data,
-            vec![],
+
+        let id = crc(
+            path.file_name()
+                .ok_or(Error::NoFileName(path.into()))?
+                .to_str()
+                .ok_or(Error::OsStrInvalidUnicode)?,
+            crc_version
         );
-        if let Some(f) = self.files.insert(file.index.id, file) {
+        let offset = self.get_body_size() as u32;
+        let size = data.len() as u32;
+
+        self.body.append(&mut data);
+        let file = MixIndexEntry::new(id, offset, size);
+        if let Some(f) = self.index.insert(file.id, file) {
             if !allow_overwrite {
                 Err(Error::FileOverwrite(f))?
             }
         }
+
         Ok(())
     }
 
-    /// Recalculate the MIX index. Previous order of file offsets might not be preserved.
-    /// Compactness (or lack thereof) is preserved.
-    pub fn recalc(&mut self) {
-        let mut offset = 0u32;
-        self.body_size = 0;
-        for file in self.files.values_mut() {
-            offset += file.residue.len() as u32;
-            file.index.offset = offset;
-            offset += file.index.size;
-            self.body_size += file.index.size;
-        }
-        self.body_size += self.residue.len() as u32;
+    /// Removes the file with given ID from the MIX index. Note: in order to fully remove a file with its contents, use `recalc()` afterwards.
+    pub fn remove_file(&mut self, id: i32) {
+        self.index.remove(&id);
     }
 
     /// Recalculate the MIX index and compact the MIX. Previous order of file offsets might not be preserved.
-    pub fn recalc_compact(&mut self) {
-        let mut offset = 0u32;
-        self.body_size = 0;
-        for file in self.files.values_mut() {
-            file.index.offset = offset;
-            offset += file.index.size;
-            self.body_size += file.index.size;
-            file.residue.clear();
-        }
+    /// Any data not covered by indexed files willbe lost.
+    pub fn recalc(&mut self) {
+
+
+
+        todo!() // TODO
     }
 
+    /// Sort MIX index by ascending ID.
+    pub fn sort_by_id(&mut self) {
+        self.index.sort_keys();
+    }
+
+    /// Sort MIX index by ascending offset.
+    pub fn sort_by_offset(&mut self) {
+        self.index.sort_by(|_, f1, _, f2| f1.offset.cmp(&f2.offset));
+    }
+
+    /// Get the MIX body SHA1 checksum if available.
+    pub fn get_checksum(&self) -> Option<&Checksum> {
+        self.checksum.as_ref()
+    }
+
+    /// Calculate and set the MIX body SHA1 checksum.
     pub fn calc_checksum(&mut self) {
         let mut hasher = Sha1::new();
-        for file in self.files.values() {
-            hasher.update(&file.residue);
-            hasher.update(&file.body);
-        }
-        hasher.update(&self.residue);
+        hasher.update(&self.body);
         self.checksum = Some(hasher.finalize().into());
+        self.flags.insert(MixHeaderFlags::CHECKSUM);
     }
 
-    pub fn is_compact(&self) -> bool {
-        !self.files.values().any(|f| !f.residue.is_empty()) || !self.residue.is_empty()
-    }
-
-    pub fn get_index_size(&self) -> usize {
-        self.files.len() * std::mem::size_of::<MixIndexEntry>()
-    }
-
-    /// Calculate MIX body size, summing all files and residues.
-    pub fn get_body_size(&self) -> usize {
-        self.files
-            .values()
-            .fold(0, |acc, x| acc + x.body.len() + x.residue.len())
-            + self.residue.len()
-    }
-
-    /// Find the offset *after* the last file ends.
-    fn find_last_offset(&self) -> u32 {
-        self.files
-            .values()
-            .max_by_key(|f| f.index.offset)
-            .map_or(0, |f| f.index.offset + f.index.size)
-    }
-}
-
-/// A MIX file entry contains an index entry used for identification, actual body
-/// and residue bytes.
-#[derive(Debug, Default)]
-pub struct MixFileEntry {
-    pub index: MixIndexEntry,
-    pub body: Vec<u8>,
-    pub residue: Vec<u8>,
-}
-
-impl MixFileEntry {
-    pub fn new(id: i32, body: Vec<u8>, residue: Vec<u8>) -> Self {
-        MixFileEntry {
-            index: MixIndexEntry {
-                id,
-                offset: 0,
-                size: body.len() as u32,
-            },
-            body,
-            residue,
+    /// Set (if Some) or reset (if None) the MIX checksum. Header flags are set appropriately.
+    pub fn set_checksum(&mut self, checksum: Option<Checksum>) {
+        self.checksum = checksum;
+        if checksum.is_some() {
+            self.flags.insert(MixHeaderFlags::CHECKSUM);
+        } else {
+            self.flags.remove(MixHeaderFlags::CHECKSUM);
         }
+    }
+
+    /// Get the MIX Blowfish key if available.
+    pub fn get_blowfish_key(&self) -> Option<&BlowfishKey> {
+        self.blowfish_key.as_ref()
+    }
+
+    /// Set (if Some) or reset (if None) the MIX Blowfish key. Header flags are set appropriately.
+    pub fn set_blowfish_key(&mut self, blowfish_key: Option<BlowfishKey>) {
+        self.blowfish_key = blowfish_key;
+        if blowfish_key.is_some() {
+            self.flags.insert(MixHeaderFlags::ENCRYPTION);
+        } else {
+            self.flags.remove(MixHeaderFlags::ENCRYPTION);
+        }
+    }
+
+    /// Check if the MIX is compact, aka if its body contains no extra data beyond files in the index.
+    ///
+    /// This method sorts the MIX index by offset.
+    pub fn is_compact(&mut self) -> bool {
+        self.sort_by_offset();
+        let mut ptr = 0;
+        for file in self.index.values() {
+            // Empty space.
+            if file.offset > ptr {
+                return false;
+            }
+            // Compact or overlapping files.
+            ptr += file.size - (ptr - file.offset);
+        }
+        return true;
+    }
+
+    /// Get MIX index size in bytes.
+    pub fn get_index_size(&self) -> usize {
+        self.index.len() * std::mem::size_of::<MixIndexEntry>()
+    }
+
+    /// Get MIX body size in bytes.
+    pub fn get_body_size(&self) -> usize {
+        self.body.len()
+    }
+
+    /// Find the offset *after* the last file in the MIX.
+    fn find_last_offset(&self) -> u32 {
+        self.index
+            .values()
+            .max_by_key(|f| f.offset)
+            .map_or(0, |f| f.offset + f.size)
     }
 }
 
@@ -261,4 +258,10 @@ pub struct MixIndexEntry {
     pub id: i32,
     pub offset: u32,
     pub size: u32,
+}
+
+impl MixIndexEntry {
+    pub fn new(id: i32, offset: u32, size: u32) -> Self {
+        Self { id, offset, size }
+    }
 }

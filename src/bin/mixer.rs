@@ -11,6 +11,7 @@ use clap::{Parser, Subcommand};
 
 use rust_alert::{
     converters::ini2db,
+    core::GameEnum,
     ini::io::IniReader,
     mix::{
         db::{io::LocalMixDbReader, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
@@ -195,15 +196,19 @@ fn read_db(path: &PathBuf) -> Result<MixDatabase> {
 }
 
 fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
-    let lmd = mix.get_file(if mix.is_new_mix {
+    let lmd = mix.get_file(if mix.is_new_format {
         LMD_KEY_TS
     } else {
         LMD_KEY_TD
     });
-    let lmd = lmd.map(|x| {
-        let x: &mut dyn Read = &mut x.as_slice();
-        LocalMixDbReader::read_file(x)
-    });
+
+    let lmd = if let Some(mut lmd) = lmd {
+        let x: &mut dyn Read = &mut lmd;
+        Some(LocalMixDbReader::read_file(x))
+    } else {
+        None
+    };
+
     match lmd.transpose() {
         Ok(x) => x,
         Err(x) => {
@@ -237,14 +242,13 @@ fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
     let mut mix = Mix::default();
     for res in paths {
         match res {
-            Ok(path) => mix.force_file_path(path.path(), false)?, // todo overwite policy as arg
+            Ok(path) => mix.add_file_path(path.path(), GameEnum::YR, false)?, // todo crc and overwite policy as arg
             Err(e) => Err(e)?,
         }
     }
 
     if args.checksum {
         mix.calc_checksum();
-        mix.flags.insert(MixHeaderFlags::CHECKSUM);
     }
     if args.encrypt {
         todo!(); // Generate an encryption key.
@@ -271,18 +275,22 @@ fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
             mix.flags.remove(MixHeaderFlags::CHECKSUM);
         }
         ChecksumMode::Check => {
-            let old = mix.checksum.clone().unwrap_or_else(|| unreachable!());
+            let old = mix.checksum.clone().unwrap();
             mix.calc_checksum();
             let new = mix.checksum.unwrap_or_else(|| unreachable!());
             if old.starts_with(&new) {
                 println!("Valid checksum.");
             } else {
                 println!("Invalid checksum.");
-                println!("Appended to MIX: {}", old.map(|c| format!("{:X}", c)).concat());
+                println!(
+                    "Appended to MIX: {}",
+                    old.map(|c| format!("{:X}", c)).concat()
+                );
                 println!("Actual: {}", new.map(|c| format!("{:X}", c)).concat());
             }
         }
     };
+
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
@@ -295,7 +303,7 @@ fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
 fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut mix = MixReader::read_file(&mut reader, new_mix)?;
-    mix.recalc_compact();
+    mix.recalc();
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
@@ -313,11 +321,11 @@ fn encrypt(args: &EncryptArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut mix = MixReader::read_file(&mut reader, new_mix)?;
     if args.decrypt {
-        mix.blowfish_key = None;
-        mix.flags.remove(MixHeaderFlags::ENCRYPTION);
+        mix.set_blowfish_key(None);
     } else {
         todo!(); // generate a key
-        mix.flags.insert(MixHeaderFlags::ENCRYPTION);
+        let blowfish_key = Some([0u8; 56]);
+        mix.set_blowfish_key(blowfish_key);
     }
     let mut writer = OpenOptions::new()
         .write(true)
@@ -345,17 +353,18 @@ fn extract_inner(
     std::fs::create_dir_all(output_dir)?;
     let (mixdb, _) = prepare_databases(&mix, &args.db)?;
 
-    for file in mix.files.values() {
-        let filename = mixdb.get_name_or_id(file.index.id);
+    for file in mix.index.values() {
+        let filename = mixdb.get_name_or_id(file.id);
 
         if !args.quiet {
-            println!("{}, {} bytes", filename, file.index.size);
+            println!("{}, {} bytes", filename, file.size);
         }
         if args.recursive && filename.ends_with(".mix") {
-            let mix_reader: &mut dyn Read = &mut file.body.as_slice();
+            let mix_reader: &mut dyn Read = &mut mix.get_file(file.id).unwrap(); // TODO remove unwrap
             extract_inner(mix_reader, &output_dir.join(filename), args, new_mix)?;
         } else {
-            write(output_dir.join(filename), &file.body)?;
+            let data = mix.get_file(file.id).unwrap(); // TODO remove unwrap
+            write(output_dir.join(filename), data)?;
         }
     }
 
@@ -364,18 +373,18 @@ fn extract_inner(
 
 fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mix = MixReader::read_file(&mut reader, new_mix)?;
+    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
     let (mixdb, has_lmd) = prepare_databases(&mix, &args.db)?;
 
     if !args.no_header {
         println!(
             "Mix type:           {}",
-            if mix.is_new_mix { "new" } else { "old" }
+            if mix.is_new_format { "new" } else { "old" }
         );
         println!("Mix flags:          {:?}", mix.flags);
         println!("Mix extra flags:    {:?}", mix.extra_flags);
-        println!("# of files:         {:?}", mix.files.len());
-        println!("Declared body size: {:?} bytes", mix.body_size);
+        println!("# of files:         {:?}", mix.index.len());
+        println!("Declared body size: {:?} bytes", mix.declared_body_size);
         println!("Actual body size:   {:?} bytes", mix.get_body_size());
         println!("Index size:         {:?} bytes", mix.get_index_size());
         println!("Is compact:         {:?}", mix.is_compact());
@@ -384,7 +393,7 @@ fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
             mix.blowfish_key,
             |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat()
         );
-        printoptionmapln!("Checksum (SHA1):    {}", mix.checksum, |x: Checksum| x
+        printoptionmapln!("Checksum (SHA1):    {:?}", mix.checksum, |x: Checksum| x
             .map(|c| format!("{:X?}", c))
             .concat());
         println!("Has LMD:            {}", has_lmd);
@@ -393,17 +402,21 @@ fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
         }
     }
 
+    mix.sort_by_id();
+
     if !args.no_index {
-        println!("{: <16} {: <8} {: >10} {: >10} {: >10}", "Name", "ID", "Offset", "Size", "Residue");
-        println!("{:=<58}", "");
-        for f in mix.files.values() {
+        println!(
+            "{: <16} {: <8} {: >10} {: >10}",
+            "Name", "ID", "Offset", "Size"
+        );
+        println!("{:=<47}", "");
+        for f in mix.index.values() {
             println!(
-                "{: <16} {:0<8X} {: >10?} {: >10?} {: >10}",
-                mixdb.get_name(f.index.id).unwrap_or(&String::default()),
-                f.index.id,
-                f.index.offset,
-                f.index.size,
-                f.residue.len(),
+                "{: <16} {:0<8X} {: >10?} {: >10?}",
+                mixdb.get_name(f.id).unwrap_or(&String::default()),
+                f.id,
+                f.offset,
+                f.size
             )
         }
     }
