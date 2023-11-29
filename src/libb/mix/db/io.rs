@@ -63,8 +63,8 @@ impl LocalMixDbReader {
         let mut buf = [0u8; size_of::<u32>()];
         reader.read_exact(&mut buf)?;
         let size = u32::from_le_bytes(buf);
-        reader.read_exact(&mut buf)?; // Skip 4 bytes
-        reader.read_exact(&mut buf)?; // Skip 4 bytes
+        reader.read_exact(&mut buf)?; // Skip 4 empty bytes
+        reader.read_exact(&mut buf)?; // Skip 4 empty bytes
         reader.read_exact(&mut buf)?;
         let version: LMDVersionEnum = u32::from_le_bytes(buf).try_into()?;
         reader.read_exact(&mut buf)?;
@@ -115,16 +115,13 @@ impl LocalMixDbWriter {
     }
 
     pub fn write_header(writer: &mut dyn Write, lmd: &LocalMixDatabase) -> Result<()> {
+        let size = lmd
+            .db
+            .names
+            .values()
+            .fold(0u32, |acc, x| acc + x.len() as u32 + 1);
         writer.write_all(LMD_PREFIX)?;
-        writer.write_all(
-            &(LMD_HEADER_SIZE as u32
-                + lmd
-                    .db
-                    .names
-                    .values()
-                    .fold(0u32, |acc, x| acc + x.len() as u32))
-            .to_le_bytes(),
-        )?;
+        writer.write_all(&(LMD_HEADER_SIZE as u32 + size).to_le_bytes())?;
         writer.write_all(&[0u8, 0, 0, 0])?;
         writer.write_all(&[0u8, 0, 0, 0])?;
         writer.write_all(&TryInto::<u32>::try_into(lmd.version)?.to_le_bytes())?;

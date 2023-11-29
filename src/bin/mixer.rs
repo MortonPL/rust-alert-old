@@ -275,7 +275,7 @@ fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
             mix.flags.remove(MixHeaderFlags::CHECKSUM);
         }
         ChecksumMode::Check => {
-            let old = mix.checksum.clone().unwrap();
+            let old = mix.checksum.unwrap();
             mix.calc_checksum();
             let new = mix.checksum.unwrap_or_else(|| unreachable!());
             if old.starts_with(&new) {

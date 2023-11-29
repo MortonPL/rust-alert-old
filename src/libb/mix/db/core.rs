@@ -80,7 +80,7 @@ impl GlobalMixDatabase {
         self.dbs
             .iter()
             .find_map(|x| x.names.get(&id))
-            .map_or_else(|| format!("{:X}", id), |x| x.to_string())
+            .map_or_else(|| format!("{:0>8X}", id), |x| x.to_string())
     }
 }
 

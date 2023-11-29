@@ -16,10 +16,6 @@ use crate::{
     mix::{BlowfishKey, Checksum, Mix, MixHeaderFlags, MixIndexEntry},
 };
 
-/// Prefix of every LMD header.
-pub const LMD_PREFIX: &[u8; 32] = b"XCC by Olaf van der Spek\x1a\x04\x17\x27\x10\x19\x80\x00";
-/// Size of the entire LMD header.
-pub const LMD_HEADER_SIZE: usize = LMD_PREFIX.len() + 20;
 /// Size of an RSA-encryptable Blowfish key chunk.
 pub const BLOWFISH_KEY_CHUNK_SIZE: usize = 40;
 /// Total size of an RSA encypted Blowfish key.
@@ -96,7 +92,7 @@ impl MixReader {
         let mut blowfish_data: Option<(BlowfishKey, Blowfish, [u8; 2])> = None;
         let num_files: u16;
         let declared_body_size: u32;
-        // Read flags. 
+        // Read flags.
         reader.read_exact(&mut buf)?;
         let extra_flags = u16::from_le_bytes(buf);
 
@@ -150,8 +146,13 @@ impl MixReader {
 
     /// Read the entire MIX index section.
     pub fn read_index(reader: &mut dyn Read, num_files: u16) -> Result<Vec<MixIndexEntry>> {
+        let size = num_files as usize * size_of::<MixIndexEntry>();
+        let mut buf = vec![0u8; size];
+        reader.read_exact(&mut buf)?;
+        let mem_reader: &mut dyn Read = &mut buf.as_slice();
+
         (0..num_files)
-            .map(|_| Self::read_index_entry(reader))
+            .map(|_| Self::read_index_entry(mem_reader))
             .collect()
     }
 
@@ -260,7 +261,7 @@ impl MixWriter {
         buf.write_all(&(mix.index.len() as u16).to_le_bytes())?;
         buf.write_all(&(mix.get_body_size() as u32).to_le_bytes())?;
         for entry in mix.index.values() {
-            Self::write_index_entry(&mut buf, &entry)?;
+            Self::write_index_entry(&mut buf, entry)?;
         }
         buf.extend_from_slice(&[0u8; BLOWFISH_BLOCK_SIZE][0..pad]);
         let mut cipher = Blowfish::bc_init_state();
@@ -278,7 +279,7 @@ impl MixWriter {
     pub fn write_index(writer: &mut dyn Write, mix: &mut Mix) -> Result<()> {
         mix.sort_by_id();
         for entry in mix.index.values() {
-            Self::write_index_entry(writer, &entry)?;
+            Self::write_index_entry(writer, entry)?;
         }
         Ok(())
     }

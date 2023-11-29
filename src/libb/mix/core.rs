@@ -116,20 +116,25 @@ impl Mix {
             .map(|f| &mut self.body[(f.offset as usize)..(f.offset as usize + f.size as usize)])
     }
 
-    /// Add a file from raw data at the end of the MIX. Overwriting a file raises an error.
-    pub fn add_file_raw(&mut self, data: Vec<u8>, id: i32) -> Result<()> {
+    /// Add a file at the end of the MIX, using raw data. Overwriting a file raises an error.
+    pub fn add_file_raw(&mut self, mut data: Vec<u8>, id: i32) -> Result<()> {
         let size = data.len() as u32;
         let file = MixIndexEntry::new(id, self.find_last_offset(), size);
         if let Some(f) = self.index.insert(file.id, file) {
             Err(Error::FileOverwrite(f))?
         }
-        self.body.extend(data);
+        self.body.append(&mut data);
 
         Ok(())
     }
 
-    /// Add a file from path at the end of the MIX. Overwriting a file may raise an error.
-    pub fn add_file_path(&mut self, path: impl AsRef<Path>, crc_version: GameEnum, allow_overwrite: bool) -> Result<()> {
+    /// Add a file at the end of the MIX, reading it from path. Overwriting a file may raise an error.
+    pub fn add_file_path(
+        &mut self,
+        path: impl AsRef<Path>,
+        crc_version: GameEnum,
+        allow_overwrite: bool,
+    ) -> Result<()> {
         let mut data = read(&path)?;
         let path: &Path = path.as_ref();
 
@@ -138,7 +143,7 @@ impl Mix {
                 .ok_or(Error::NoFileName(path.into()))?
                 .to_str()
                 .ok_or(Error::OsStrInvalidUnicode)?,
-            crc_version
+            crc_version,
         );
         let offset = self.get_body_size() as u32;
         let size = data.len() as u32;
@@ -154,7 +159,8 @@ impl Mix {
         Ok(())
     }
 
-    /// Removes the file with given ID from the MIX index. Note: in order to fully remove a file with its contents, use `recalc()` afterwards.
+    /// Removes the file with given ID from the MIX index.
+    /// Note: in order to fully remove a file with its contents, use `recalc()` afterwards.
     pub fn remove_file(&mut self, id: i32) {
         self.index.remove(&id);
     }
@@ -228,7 +234,6 @@ impl Mix {
     }
 
     /// Check if the MIX is compact, aka if its body contains no extra data beyond files in the index.
-    ///
     /// This method sorts the MIX index by offset.
     pub fn is_compact(&mut self) -> bool {
         self.sort_by_offset();
@@ -241,7 +246,7 @@ impl Mix {
             // Compact or overlapping files.
             ptr += file.size - (ptr - file.offset);
         }
-        return true;
+        true
     }
 
     /// Get MIX index size in bytes.
@@ -258,7 +263,7 @@ impl Mix {
     fn find_last_offset(&self) -> u32 {
         self.index
             .values()
-            .max_by_key(|f| f.offset)
+            .max_by_key(|f| f.offset + f.size)
             .map_or(0, |f| f.offset + f.size)
     }
 }
