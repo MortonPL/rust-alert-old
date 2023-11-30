@@ -135,12 +135,18 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() {
     let args = Args::parse();
-
-    match &args.command {
+    let res = match &args.command {
         Commands::Build(x) => build(x),
         Commands::Extract(x) => extract(x),
         Commands::Inspect(x) => inspect(x),
-    }
+    };
+    match res {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Error: {}.", e);
+            std::process::exit(1);
+        }
+    };
 }

@@ -7,15 +7,16 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{Parser, Subcommand};
+use clap::{builder::ValueParser, Parser, Subcommand};
 
 use rust_alert::{
     converters::ini2db,
     core::GameEnum,
+    defaultarray,
     ini::io::IniReader,
     mix::{
         db::{io::LocalMixDbReader, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
-        io::{MixReader, MixWriter},
+        io::{generate_blowfish, MixReader, MixWriter},
         BlowfishKey, Checksum, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
     },
     printoptionmapln,
@@ -33,6 +34,12 @@ enum Error {
     IniIO(#[from] rust_alert::ini::io::Error),
     #[error("{0}")]
     DatabaseConversionError(#[from] rust_alert::converters::DBConversionError),
+    #[error("MIX doesn't contain a checksum")]
+    MissingChecksum,
+    #[error("Checksum in MIX and actual don't match")]
+    InvalidChecksum,
+    #[error("Cannot extract key out of a decrypted MIX")]
+    MissingKey,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -58,15 +65,16 @@ enum Commands {
     Build(BuildArgs),
     /// Add/Remove/Check MIX checksum.
     Checksum(ChecksumArgs),
-    /// Compact the MIX body.
+    /// Compact (remove unused data from) the MIX body.
     Compact(CompactArgs),
     /// Secure the MIX with a suite of anti-ripper corruptions.
     Corrupt(CorruptArgs),
-    /// Encrypt/Decrypt a MIX file.
-    Encrypt(EncryptArgs),
+    /// Encrypt/Decrypt a MIX file or extract stored key.
+    Blowfish(BlowfishArgs),
     /// Extract MIX contents to folder.
     Extract(ExtractArgs),
-    /// Inspect MIX file.
+    /// Inspect MIX file. Print general information such as header values,
+    /// checksum, encryption key, as well as the file index.
     Inspect(InspectArgs),
 }
 
@@ -103,12 +111,13 @@ struct ChecksumArgs {
 
 #[derive(Clone, Default, Subcommand)]
 enum ChecksumMode {
-    /// Add a SHA1 checksum at the end of the MIX.
+    /// Add a SHA1 checksum of MIX body at the end of the file and set the checksum header flag.
     #[default]
     Add,
-    /// Remove existing checksum from the MIX.
+    /// Remove existing checksum from the MIX and clear the checksum header flag.
     Remove,
     /// Check if the attached checksum matches MIX body.
+    /// Raises error when checksums don't match or the MIX contains no checksum.
     Check,
 }
 
@@ -142,17 +151,34 @@ struct CorruptArgs {
 }
 
 #[derive(clap::Args)]
-struct EncryptArgs {
+struct BlowfishArgs {
+    /// Mode of operation.
+    mode: BlowfishMode,
     /// Path to an input MIX file.
     input: PathBuf,
     /// Path to an output MIX file. Same as input by default.
     output: Option<PathBuf>,
-    /// Decrypt the MIX file instead.
-    #[arg(short, long, default_value_t = false)]
-    decrypt: bool,
-    /// Blowfish key to use for encryption. Leave empty for a random key.
+    /// Path to a Blowfish key.
+    /// For encryption, 56 bytes of the file will be read and used as the key. Leave empty for a random key.
+    /// For key extraction, the key will be written to this file. Leavy empty to write to stdout.
     #[arg(short, long)]
-    encryption_key: Option<String>, // todo stricter type
+    key: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum BlowfishMode {
+    /// Decrypt the MIX header/index using attached Blowfish key.
+    Decrypt,
+    /// Encrypt the MIX header/index using provided or random Blowfish key.
+    Encrypt,
+    /// Output the Blowfish key attached to the MIX.
+    Get,
+}
+
+impl std::fmt::Display for BlowfishMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
 }
 
 #[derive(clap::Args)]
@@ -176,17 +202,57 @@ struct ExtractArgs {
 struct InspectArgs {
     /// Path to an input MIX file.
     input: PathBuf,
-    /// Do not print the MIX header.
+    /// Do not print the MIX header information.
     #[arg(long, default_value_t = false)]
     no_header: bool,
     /// Do not print the file index.
     #[arg(long, default_value_t = false)]
     no_index: bool,
-    /// Path to a MIX database in INI format.
+    /// Path to a MIX database (containing filenames) in INI format.
     #[arg(short, long)]
     db: Option<PathBuf>,
+    /// Sort file index (in ascending order) by given column.
+    #[arg(short, long, default_value_t = Default::default())]
+    sort: InspectSortOrderEnum,
 }
 
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+enum InspectSortOrderEnum {
+    #[default]
+    Id,
+    Offset,
+    Size,
+    Name,
+}
+
+impl std::fmt::Display for InspectSortOrderEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+fn read_mix(input: &PathBuf, new_mix: bool) -> Result<Mix> {
+    let mut reader = OpenOptions::new().read(true).open(input)?;
+    let mix = MixReader::read_file(&mut reader, new_mix)?;
+    Ok(mix)
+}
+
+fn write_mix(
+    mix: &mut Mix,
+    output: &Option<PathBuf>,
+    default: &PathBuf,
+    new_mix: bool,
+) -> Result<()> {
+    let mut writer = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(output.as_ref().unwrap_or(default))?;
+    MixWriter::write_file(&mut writer, mix, new_mix)?;
+    Ok(())
+}
+
+/// Read a MIX database from an INI file.
 fn read_db(path: &PathBuf) -> Result<MixDatabase> {
     let reader = OpenOptions::new().read(true).open(path)?;
     let reader = BufReader::new(reader);
@@ -195,6 +261,7 @@ fn read_db(path: &PathBuf) -> Result<MixDatabase> {
     Ok(db)
 }
 
+/// Read an LMD from inside a MIX.
 fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
     let lmd = mix.get_file(if mix.is_new_format {
         LMD_KEY_TS
@@ -218,6 +285,7 @@ fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
     }
 }
 
+/// Read GMD & LMD and merge them.
 fn prepare_databases(mix: &Mix, gmd_path: &Option<PathBuf>) -> Result<(GlobalMixDatabase, bool)> {
     let mut mixdb = GlobalMixDatabase::default();
     let mut has_lmd = false;
@@ -261,10 +329,23 @@ fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
     Ok(())
 }
 
-fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
-    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
+fn compare_checksum(mix: &mut Mix) -> Result<()> {
+    let old = mix.checksum.ok_or(Error::MissingChecksum)?;
+    mix.calc_checksum();
+    let new = mix.checksum.unwrap_or_else(|| unreachable!());
+    println!("In MIX: {}", old.map(|c| format!("{:X}", c)).concat());
+    println!("Actual: {}", new.map(|c| format!("{:X}", c)).concat());
+    if old.starts_with(&new) {
+        println!("Matching checksum.");
+        Ok(())
+    } else {
+        Err(Error::InvalidChecksum)
+    }
+}
 
+/// Add checksum to MIX, remove checksum from MIX, or check if checksum in the MIX is true.
+fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
+    let mut mix = read_mix(&args.input, new_mix)?;
     match args.mode {
         ChecksumMode::Add => {
             mix.calc_checksum();
@@ -275,41 +356,24 @@ fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
             mix.flags.remove(MixHeaderFlags::CHECKSUM);
         }
         ChecksumMode::Check => {
-            let old = mix.checksum.unwrap();
-            mix.calc_checksum();
-            let new = mix.checksum.unwrap_or_else(|| unreachable!());
-            if old.starts_with(&new) {
-                println!("Valid checksum.");
-            } else {
-                println!("Invalid checksum.");
-                println!(
-                    "Appended to MIX: {}",
-                    old.map(|c| format!("{:X}", c)).concat()
-                );
-                println!("Actual: {}", new.map(|c| format!("{:X}", c)).concat());
-            }
+            return compare_checksum(&mut mix);
         }
     };
-
-    let mut writer = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(args.output.as_ref().unwrap_or(&args.input))?;
-    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
+    write_mix(&mut mix, &args.output, &args.input, new_mix)?;
+    match args.mode {
+        ChecksumMode::Add => println!("Checksum added successfully."),
+        ChecksumMode::Remove => println!("Checksum removed successfully."),
+        _ => (),
+    };
     Ok(())
 }
 
+/// Compact the MIX: remove all data not belonging to any file.
 fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
-    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
+    let mut mix = read_mix(&args.input, new_mix)?;
     mix.recalc();
-    let mut writer = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(args.output.as_ref().unwrap_or(&args.input))?;
-    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
+    write_mix(&mut mix, &args.output, &args.input, new_mix)?;
+    println!("Compacted the MIX successfully.");
     Ok(())
 }
 
@@ -317,29 +381,55 @@ fn corrupt(args: &CorruptArgs, new_mix: bool) -> Result<()> {
     Ok(())
 }
 
-fn encrypt(args: &EncryptArgs, new_mix: bool) -> Result<()> {
-    let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    let mut mix = MixReader::read_file(&mut reader, new_mix)?;
-    if args.decrypt {
-        mix.set_blowfish_key(None);
+fn encrypt_mix(mix: &mut Mix, key: &Option<PathBuf>) -> Result<()> {
+    let key = if let Some(key) = key {
+        let mut reader = OpenOptions::new().read(true).open(key)?;
+        let mut key = defaultarray!(BlowfishKey);
+        reader.read_exact(&mut key)?;
+        Some(key)
     } else {
-        todo!(); // generate a key
-        let blowfish_key = Some([0u8; 56]);
-        mix.set_blowfish_key(blowfish_key);
-    }
-    let mut writer = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(args.output.as_ref().unwrap_or(&args.input))?;
-    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
+        Some(generate_blowfish())
+    };
+    mix.set_blowfish_key(key);
     Ok(())
 }
 
+fn get_mix_key(mix: &Mix, key: &Option<PathBuf>) -> Result<()> {
+    let mut writer: Box<dyn std::io::Write> = if let Some(key) = key {
+        Box::new(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(key)?,
+        )
+    } else {
+        Box::new(std::io::stdout())
+    };
+    let key = mix.blowfish_key.ok_or(Error::MissingKey)?;
+    writer.write_all(&key)?;
+    Ok(())
+}
+
+/// Encrypt, decrypt MIX or extract the key.
+fn encrypt(args: &BlowfishArgs, new_mix: bool) -> Result<()> {
+    let mut mix = read_mix(&args.input, new_mix)?;
+    match args.mode {
+        BlowfishMode::Decrypt => {
+            mix.set_blowfish_key(None);
+            Ok(())
+        }
+        BlowfishMode::Encrypt => encrypt_mix(&mut mix, &args.key),
+        BlowfishMode::Get => get_mix_key(&mix, &args.key),
+    }?;
+    write_mix(&mut mix, &args.output, &args.input, new_mix)?;
+    Ok(())
+}
+
+/// Extract all files from a MIX.
 fn extract(args: &ExtractArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     extract_inner(&mut reader, &args.output, args, new_mix)?;
-
     Ok(())
 }
 
@@ -371,70 +461,111 @@ fn extract_inner(
     Ok(())
 }
 
+/// Sort given MIX by names from given GMD.
+fn sort_by_name(mix: &mut Mix, db: &GlobalMixDatabase) {
+    mix.index.sort_by(|_, f1, _, f2| {
+        db.get_name(f1.id)
+            .cloned()
+            .unwrap_or(String::default())
+            .cmp(db.get_name(f2.id).unwrap_or(&String::default()))
+    });
+}
+
+fn inspect_header(mix: &mut Mix, has_lmd: bool) {
+    println!(
+        "Mix type:           {}",
+        if mix.is_new_format {
+            "New (>= RA1)"
+        } else {
+            "Old (TD, RA1)"
+        }
+    );
+    println!("Mix flags:          {:?}", mix.flags);
+    println!("Mix extra flags:    {:?}", mix.extra_flags);
+    println!("# of files:         {:?}", mix.index.len());
+    println!("Declared body size: {:?} bytes", mix.declared_body_size);
+    println!("Actual body size:   {:?} bytes", mix.get_body_size());
+    println!("Index size:         {:?} bytes", mix.get_index_size());
+    println!("Is compact:         {:?}", mix.is_compact());
+    printoptionmapln!(
+        "Blowfish key:       {:x?}",
+        mix.blowfish_key,
+        |x: BlowfishKey| x.map(|c| format!("{:02X?}", c)).concat()
+    );
+    printoptionmapln!("Checksum (SHA1):    {:?}", mix.checksum, |x: Checksum| x
+        .map(|c| format!("{:X?}", c))
+        .concat());
+    println!("Has LMD:            {}", has_lmd);
+}
+
+fn inspect_index(mix: &mut Mix, mixdb: &GlobalMixDatabase, sort: InspectSortOrderEnum) {
+    match sort {
+        InspectSortOrderEnum::Id => mix.sort_by_id(),
+        InspectSortOrderEnum::Name => sort_by_name(mix, &mixdb),
+        InspectSortOrderEnum::Offset => mix.sort_by_offset(),
+        InspectSortOrderEnum::Size => mix.sort_by_size(),
+    }
+    let names: Vec<_> = mix
+        .index
+        .values()
+        .map(|f| mixdb.get_name(f.id).cloned().unwrap_or(String::default()))
+        .collect();
+    let maxname = names.iter().map(|x| x.len()).max().unwrap_or_default();
+    println!(
+        "{: <maxname$} {: <8} {: >10} {: >10}",
+        "Name",
+        "ID",
+        "Offset",
+        "Size",
+        maxname = maxname
+    );
+    let total_len = maxname + 28 + 3;
+    println!("{:=<len$}", "", len = total_len);
+    for (f, name) in mix.index.values().zip(names) {
+        println!(
+            "{: <len$} {:0>8X} {: >10?} {: >10?}",
+            name,
+            f.id,
+            f.offset,
+            f.size,
+            len = maxname,
+        )
+    }
+}
+
+/// Inspect the MIX, printing useful header information and/or index contents.
 fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut mix = MixReader::read_file(&mut reader, new_mix)?;
     let (mixdb, has_lmd) = prepare_databases(&mix, &args.db)?;
-
     if !args.no_header {
-        println!(
-            "Mix type:           {}",
-            if mix.is_new_format { "new" } else { "old" }
-        );
-        println!("Mix flags:          {:?}", mix.flags);
-        println!("Mix extra flags:    {:?}", mix.extra_flags);
-        println!("# of files:         {:?}", mix.index.len());
-        println!("Declared body size: {:?} bytes", mix.declared_body_size);
-        println!("Actual body size:   {:?} bytes", mix.get_body_size());
-        println!("Index size:         {:?} bytes", mix.get_index_size());
-        println!("Is compact:         {:?}", mix.is_compact());
-        printoptionmapln!(
-            "Blowfish key:       {:x?}",
-            mix.blowfish_key,
-            |x: BlowfishKey| x.map(|c| format!("{:X?}", c)).concat()
-        );
-        printoptionmapln!("Checksum (SHA1):    {:?}", mix.checksum, |x: Checksum| x
-            .map(|c| format!("{:X?}", c))
-            .concat());
-        println!("Has LMD:            {}", has_lmd);
+        inspect_header(&mut mix, has_lmd);
         if !args.no_index {
             println!();
         }
     }
-
-    mix.sort_by_id();
-
     if !args.no_index {
-        println!(
-            "{: <16} {: <8} {: >10} {: >10}",
-            "Name", "ID", "Offset", "Size"
-        );
-        println!("{:=<47}", "");
-        for f in mix.index.values() {
-            println!(
-                "{: <16} {:0>8X} {: >10?} {: >10?}",
-                mixdb.get_name(f.id).unwrap_or(&String::default()),
-                f.id,
-                f.offset,
-                f.size
-            )
-        }
+        inspect_index(&mut mix, &mixdb, args.sort);
     }
-
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() {
     let args = Args::parse();
-    //let args = Args{ command: Commands::Inspect(InspectArgs{ input: "enc.mix".into(), no_header: false, no_index: false, new_mix: false}) };// DEBUG
-
-    match &args.command {
+    let res = match &args.command {
         Commands::Build(x) => build(x, args.new_mix),
         Commands::Checksum(x) => checksum(x, args.new_mix),
         Commands::Compact(x) => compact(x, args.new_mix),
         Commands::Corrupt(x) => corrupt(x, args.new_mix),
-        Commands::Encrypt(x) => encrypt(x, args.new_mix),
+        Commands::Blowfish(x) => encrypt(x, args.new_mix),
         Commands::Extract(x) => extract(x, args.new_mix),
         Commands::Inspect(x) => inspect(x, args.new_mix),
-    }
+    };
+    match res {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Error: {}.", e);
+            std::process::exit(1);
+        }
+    };
 }

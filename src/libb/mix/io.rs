@@ -10,6 +10,7 @@ use blowfish::{
     Blowfish,
 };
 use num_bigint::BigUint;
+use rand;
 
 use crate::{
     defaultarray,
@@ -329,6 +330,21 @@ pub fn encrypt_blowfish(key: &BlowfishKey) -> Result<BlowfishKeyEncrypted> {
     let len = key.len();
     key.try_into()
         .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
+}
+
+/// Generate a new WW-like Blowfish key.
+/// Implementation based on ccmix by OmniBlade:
+/// https://github.com/OmniBlade/ccmix/blob/4369c8fab7a484fe363f1e5e4e5ae015811cc12b/src/mix_header.cpp#LL268
+pub fn generate_blowfish() -> BlowfishKey {
+    let mut key: Vec<u8> = Vec::with_capacity(size_of::<BlowfishKey>());
+    let (byte1, byte2) = (0x18u8, 0xBBu8);
+    let array1: [u8; 7] = rand::random();
+    let array2: [u8; 7] = rand::random();
+    key.extend_from_slice(&array1);
+    key.extend(std::iter::repeat(byte1).take(19));
+    key.extend_from_slice(&array2);
+    key.extend(std::iter::repeat(byte2).take(23));
+    key.try_into().unwrap_or_else(|_| unreachable!())
 }
 
 #[cfg(test)]

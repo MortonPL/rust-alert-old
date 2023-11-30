@@ -195,6 +195,11 @@ impl Mix {
         self.index.sort_by(|_, f1, _, f2| f1.offset.cmp(&f2.offset));
     }
 
+    /// Sort MIX index by ascending size.
+    pub fn sort_by_size(&mut self) {
+        self.index.sort_by(|_, f1, _, f2| f1.size.cmp(&f2.size));
+    }
+
     /// Get the MIX body SHA1 checksum if available.
     pub fn get_checksum(&self) -> Option<&Checksum> {
         self.checksum.as_ref()
