@@ -2,24 +2,24 @@
 
 use std::{
     fs::{write, OpenOptions},
-    io::BufReader,
-    io::Read,
+    io::{BufReader, Read, Write},
     path::PathBuf,
 };
 
-use clap::{builder::ValueParser, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 use rust_alert::{
     converters::ini2db,
-    core::GameEnum,
+    core::{crc, GameEnum},
     defaultarray,
     ini::io::IniReader,
     mix::{
-        db::{io::LocalMixDbReader, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
+        db::{io::{LocalMixDbReader, LocalMixDbWriter}, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
         io::{generate_blowfish, MixReader, MixWriter},
         BlowfishKey, Checksum, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
     },
     printoptionmapln,
+    utils::{path_to_str, PathToStringError},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -40,6 +40,10 @@ enum Error {
     InvalidChecksum,
     #[error("Cannot extract key out of a decrypted MIX")]
     MissingKey,
+    #[error("{0}")]
+    PathToStringError(#[from] PathToStringError),
+    #[error("{0}")]
+    LMDIOError(#[from] rust_alert::mix::db::io::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -87,15 +91,25 @@ struct BuildArgs {
     /// Encrypt the MIX file.
     #[arg(short, long, default_value_t = false)]
     encrypt: bool,
-    /// Blowfish key to use for encryption. Leave empty for a random key.
+    /// Recursively build inner MIXes from subfolders.
+    #[arg(short, long, default_value_t = false)]
+    recursive: bool,
+    /// Path to a Blowfish key for encryption.
+    /// 56 bytes of the file will be read and used as the key. Leave empty for a random key.
     #[arg(short, long)]
-    encryption_key: Option<String>, // todo stricter type
+    key: Option<PathBuf>,
     /// Append SHA1 checksum to the MIX file.
     #[arg(short, long, default_value_t = false)]
     checksum: bool,
     /// Build LMD for the MIX file.
     #[arg(short, long, default_value_t = false)]
     lmd: bool,
+    /// Use old CRC function (TD/RA).
+    #[arg(short, long, default_value_t = true)]
+    old_crc: bool,
+    /// Allow to overwrite files with the same name.
+    #[arg(long, default_value_t = false)]
+    overwrite: bool,
 }
 
 #[derive(clap::Args)]
@@ -286,46 +300,73 @@ fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
 }
 
 /// Read GMD & LMD and merge them.
-fn prepare_databases(mix: &Mix, gmd_path: &Option<PathBuf>) -> Result<(GlobalMixDatabase, bool)> {
+fn prepare_databases(mix: &Mix, gmd: MixDatabase) -> Result<(GlobalMixDatabase, bool)> {
     let mut mixdb = GlobalMixDatabase::default();
     let mut has_lmd = false;
     if let Some(lmd) = read_lmd(mix) {
         mixdb.dbs.push(lmd.db);
         has_lmd = true;
     }
-    if let Some(gmd_path) = gmd_path {
-        let db = read_db(gmd_path)?;
-        mixdb.dbs.push(db);
-    }
+    mixdb.dbs.push(gmd);
     Ok((mixdb, has_lmd))
 }
 
-fn build(args: &BuildArgs, new_mix: bool) -> Result<()> {
+fn build(args: BuildArgs, new_mix: bool) -> Result<()> {
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(&args.output)?;
-    let paths = std::fs::read_dir(&args.input)?;
+    build_inner(&mut writer, &args.input, &args, new_mix)
+}
+
+fn build_inner(
+    writer: &mut dyn Write,
+    input: &PathBuf,
+    args: &BuildArgs,
+    new_mix: bool,
+) -> Result<()> {
+    let paths = std::fs::read_dir(input)?;
     let mut mix = Mix::default();
+    let lmd = LocalMixDatabase::default();
+    let crc_version = match args.old_crc {
+        true => GameEnum::TD,
+        false => GameEnum::YR,
+    };
     for res in paths {
         match res {
-            Ok(path) => mix.add_file_path(path.path(), GameEnum::YR, false)?, // todo crc and overwite policy as arg
+            Ok(path) => {
+                let path = path.path();
+                if path.is_dir() {
+                    let mut temp: Vec<u8> = vec![];
+                    build_inner(&mut temp, &path, args, new_mix)?;
+                    mix.add_file_raw(temp, crc(path_to_str(path)?, crc_version))?;
+                } else {
+                    mix.add_file_path(path, crc_version, args.overwrite)?;
+                }
+                if args.lmd {
+                    lmd.db.names.insert(crc(path_to_str(path)?, crc_version), path.file_name());
+                }
+            }
             Err(e) => Err(e)?,
         }
     }
-
+    if args.lmd {
+        let mut temp: Vec<u8> = vec![];
+        LocalMixDbWriter::write_file(&mut temp, &lmd)?;
+        let lmd_id = match args.old_crc {
+            true => LMD_KEY_TD,
+            false => LMD_KEY_TS,
+        };
+        mix.add_file_raw(temp, lmd_id);
+    }
+    if args.encrypt {
+        encrypt_mix(&mut mix, &args.key)?;
+    }
     if args.checksum {
         mix.calc_checksum();
     }
-    if args.encrypt {
-        todo!(); // Generate an encryption key.
-        mix.flags.insert(MixHeaderFlags::ENCRYPTION);
-    }
-
-    let lmd = args.lmd.then(MixDatabase::default); // todo make LMD from files
-    mix.recalc();
-    MixWriter::write_file(&mut writer, &mut mix, new_mix)?;
+    MixWriter::write_file(writer, &mut mix, new_mix)?;
     Ok(())
 }
 
@@ -344,7 +385,7 @@ fn compare_checksum(mix: &mut Mix) -> Result<()> {
 }
 
 /// Add checksum to MIX, remove checksum from MIX, or check if checksum in the MIX is true.
-fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
+fn checksum(args: ChecksumArgs, new_mix: bool) -> Result<()> {
     let mut mix = read_mix(&args.input, new_mix)?;
     match args.mode {
         ChecksumMode::Add => {
@@ -369,7 +410,7 @@ fn checksum(args: &ChecksumArgs, new_mix: bool) -> Result<()> {
 }
 
 /// Compact the MIX: remove all data not belonging to any file.
-fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
+fn compact(args: CompactArgs, new_mix: bool) -> Result<()> {
     let mut mix = read_mix(&args.input, new_mix)?;
     mix.recalc();
     write_mix(&mut mix, &args.output, &args.input, new_mix)?;
@@ -377,7 +418,7 @@ fn compact(args: &CompactArgs, new_mix: bool) -> Result<()> {
     Ok(())
 }
 
-fn corrupt(args: &CorruptArgs, new_mix: bool) -> Result<()> {
+fn corrupt(args: CorruptArgs, new_mix: bool) -> Result<()> {
     Ok(())
 }
 
@@ -412,7 +453,7 @@ fn get_mix_key(mix: &Mix, key: &Option<PathBuf>) -> Result<()> {
 }
 
 /// Encrypt, decrypt MIX or extract the key.
-fn encrypt(args: &BlowfishArgs, new_mix: bool) -> Result<()> {
+fn encrypt(args: BlowfishArgs, new_mix: bool) -> Result<()> {
     let mut mix = read_mix(&args.input, new_mix)?;
     match args.mode {
         BlowfishMode::Decrypt => {
@@ -427,9 +468,15 @@ fn encrypt(args: &BlowfishArgs, new_mix: bool) -> Result<()> {
 }
 
 /// Extract all files from a MIX.
-fn extract(args: &ExtractArgs, new_mix: bool) -> Result<()> {
+fn extract(args: ExtractArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
-    extract_inner(&mut reader, &args.output, args, new_mix)?;
+    let gmd = args
+        .db
+        .clone()
+        .map(|p| read_db(&p))
+        .transpose()?
+        .unwrap_or_default();
+    extract_inner(&mut reader, &args.output, &args, new_mix, &gmd)?;
     Ok(())
 }
 
@@ -438,10 +485,11 @@ fn extract_inner(
     output_dir: &PathBuf,
     args: &ExtractArgs,
     new_mix: bool,
+    gmd: &MixDatabase,
 ) -> Result<()> {
     let mix = MixReader::read_file(reader, new_mix)?;
     std::fs::create_dir_all(output_dir)?;
-    let (mixdb, _) = prepare_databases(&mix, &args.db)?;
+    let (mixdb, _) = prepare_databases(&mix, gmd.clone())?;
 
     for file in mix.index.values() {
         let filename = mixdb.get_name_or_id(file.id);
@@ -450,10 +498,11 @@ fn extract_inner(
             println!("{}, {} bytes", filename, file.size);
         }
         if args.recursive && filename.ends_with(".mix") {
-            let mix_reader: &mut dyn Read = &mut mix.get_file(file.id).unwrap(); // TODO remove unwrap
-            extract_inner(mix_reader, &output_dir.join(filename), args, new_mix)?;
+            let mix_reader: &mut dyn Read =
+                &mut mix.get_file(file.id).unwrap_or_else(|| unreachable!());
+            extract_inner(mix_reader, &output_dir.join(filename), args, new_mix, gmd)?;
         } else {
-            let data = mix.get_file(file.id).unwrap(); // TODO remove unwrap
+            let data = mix.get_file(file.id).unwrap_or_else(|| unreachable!());
             write(output_dir.join(filename), data)?;
         }
     }
@@ -534,10 +583,15 @@ fn inspect_index(mix: &mut Mix, mixdb: &GlobalMixDatabase, sort: InspectSortOrde
 }
 
 /// Inspect the MIX, printing useful header information and/or index contents.
-fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
+fn inspect(args: InspectArgs, new_mix: bool) -> Result<()> {
     let mut reader = OpenOptions::new().read(true).open(&args.input)?;
     let mut mix = MixReader::read_file(&mut reader, new_mix)?;
-    let (mixdb, has_lmd) = prepare_databases(&mix, &args.db)?;
+    let gmd = args
+        .db
+        .map(|p| read_db(&p))
+        .transpose()?
+        .unwrap_or_default();
+    let (mixdb, has_lmd) = prepare_databases(&mix, gmd)?;
     if !args.no_header {
         inspect_header(&mut mix, has_lmd);
         if !args.no_index {
@@ -552,7 +606,7 @@ fn inspect(args: &InspectArgs, new_mix: bool) -> Result<()> {
 
 fn main() {
     let args = Args::parse();
-    let res = match &args.command {
+    let res = match args.command {
         Commands::Build(x) => build(x, args.new_mix),
         Commands::Checksum(x) => checksum(x, args.new_mix),
         Commands::Compact(x) => compact(x, args.new_mix),

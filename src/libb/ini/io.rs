@@ -10,8 +10,6 @@ pub enum Error {
     IO(#[from] std::io::Error),
     #[error("Unclosed section name at line {0}")]
     UnclosedSectionName(usize),
-    #[error("Too many values in an entry at line {0}")]
-    TooManyValues(usize),
     #[error("Missing entry value at line {0}")]
     MissingEntryValue(usize),
     #[error("Missing entry key at line {0}")]
@@ -81,22 +79,18 @@ impl IniReader {
                 .ok_or(Error::UnclosedSectionName(row));
         }
         // Entry
-        let mut iter = line.split('=');
-        match (iter.next(), iter.next(), iter.next()) {
+        let mut iter = line.splitn(2, '=');
+        match (iter.next(), iter.next()) {
             // =
-            (Some(""), Some(""), _) => Err(Error::MissingEntryKeyAndValue(row)),
+            (Some(""), Some("")) => Err(Error::MissingEntryKeyAndValue(row)),
             // key=
-            (Some(_), Some(""), _) => Err(Error::MissingEntryValue(row)),
+            (Some(_), Some("")) => Err(Error::MissingEntryValue(row)),
             // =value
-            (Some(""), Some(_), _) => Err(Error::MissingEntryKey(row)),
+            (Some(""), Some(_)) => Err(Error::MissingEntryKey(row)),
             // key=value
-            (Some(k), Some(v), None) => {
-                Ok(LineParseResultEnum::Entry(k.trim().into(), v.trim().into()))
-            }
-            // key=value=error
-            (_, _, Some(_)) => Err(Error::TooManyValues(row)),
+            (Some(k), Some(v)) => Ok(LineParseResultEnum::Entry(k.trim().into(), v.trim().into())),
             // no equals sign
-            (Some(_), None, _) => Ok(LineParseResultEnum::Empty),
+            (Some(_), None) => Ok(LineParseResultEnum::Empty),
             // other error
             _ => Err(Error::Other(row)),
         }
@@ -192,12 +186,14 @@ mod tests {
         }
 
         #[test]
-        fn parse_line_entry_err_too_many_values() {
+        fn parse_line_entry_ok_equals_sign() {
             let line = "a=b=c".to_string();
+            let k = "a".to_string();
+            let v = "b=c".to_string();
 
             let out = IniReader::parse_line(line, 0);
-            assert!(out.is_err());
-            assert!(matches!(out, Result::Err(Error::TooManyValues(_))));
+            assert!(out.is_ok());
+            unwrap_assert!(out, LineParseResultEnum::Entry(k, v));
         }
 
         #[test]

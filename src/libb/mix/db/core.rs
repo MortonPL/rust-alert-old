@@ -49,7 +49,7 @@ impl TryFrom<LMDVersionEnum> for u32 {
 }
 
 /// A MIX database is a file mapping unique file IDs into their original names.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MixDatabase {
     pub names: HashMap<i32, String, BuildNothingHasher>,
 }
@@ -62,7 +62,7 @@ pub struct LocalMixDatabase {
 }
 
 /// A global MIX database is a separate file containing several databases. XCC addition.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct GlobalMixDatabase {
     pub dbs: Vec<MixDatabase>,
 }

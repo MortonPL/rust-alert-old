@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 use sha1::{Digest, Sha1};
 
 use crate::core::{crc, GameEnum};
+use crate::utils::{path_to_str, PathToStringError};
 
 /// Size of a Blowfish key used in MIX encryption.
 pub const BLOWFISH_KEY_SIZE: usize = 56;
@@ -26,12 +27,10 @@ pub enum Error {
     IO(#[from] std::io::Error),
     #[error("Unknown LMD version found in the LMD: {0}")]
     UnknownLMDVersion(u32),
-    #[error("Path {0} doesn't point to a file")]
-    NoFileName(Box<Path>),
     #[error("Attempted to overwrite file {0:?}, which is not allowed")]
     FileOverwrite(MixIndexEntry),
-    #[error("Failed to convert a file path to a string, because it's not valid Unicode")]
-    OsStrInvalidUnicode,
+    #[error("{0}")]
+    PathToStringError(#[from] PathToStringError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -136,25 +135,17 @@ impl Mix {
         allow_overwrite: bool,
     ) -> Result<()> {
         let mut data = read(&path)?;
-        let path: &Path = path.as_ref();
-
-        let id = crc(
-            path.file_name()
-                .ok_or(Error::NoFileName(path.into()))?
-                .to_str()
-                .ok_or(Error::OsStrInvalidUnicode)?,
-            crc_version,
-        );
+        let id = crc(path_to_str(path)?, crc_version);
         let offset = self.get_body_size() as u32;
         let size = data.len() as u32;
 
-        self.body.append(&mut data);
         let file = MixIndexEntry::new(id, offset, size);
         if let Some(f) = self.index.insert(file.id, file) {
             if !allow_overwrite {
                 Err(Error::FileOverwrite(f))?
             }
         }
+        self.body.append(&mut data);
 
         Ok(())
     }
