@@ -14,6 +14,7 @@ indexmap = "2.0.2"
 num-bigint = "0.4.4"
 rand = "0.8.5"
 sha1 = "0.10.6"
+static_assertions = "1.1.0"
 thiserror = "1.0.49"
 
 [profile.dev]
@@ -42,12 +43,12 @@ rpath = false
 
 [[bin]]
 name = "mixer"
-path = "src/bin/mixer.rs"
+path = "src/bin/mixer/main.rs"
 
 [[bin]]
 name = "mixdb"
-path = "src/bin/mixdb.rs"
+path = "src/bin/mixdb/main.rs"
 
 [[bin]]
 name = "stringer"
-path = "src/bin/stringer.rs"
+path = "src/bin/stringer/main.rs"

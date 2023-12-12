@@ -66,3 +66,21 @@ macro_rules! unwrap_ref_assert {
         assert_eq!(&$l.unwrap(), $r)
     };
 }
+
+/// Creates an entry point for the app.
+#[macro_export]
+macro_rules! make_app {
+    ($cls:ty $(,$arg:ident)*) => {
+        static_assertions::assert_impl_all!($cls: clap::Parser);
+        fn main() {
+            let args = <$cls>::parse();
+            match args.command.run($(args.$arg),*) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("Error: {}.", e);
+                    std::process::exit(1);
+                }
+            };
+        }
+    }
+}
