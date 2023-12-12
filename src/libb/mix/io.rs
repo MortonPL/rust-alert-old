@@ -212,6 +212,8 @@ pub struct MixWriter {}
 
 impl MixWriter {
     pub fn write_file(writer: &mut dyn Write, mix: &mut Mix, force_new_format: bool) -> Result<()> {
+        mix.is_new_format =
+            mix.is_new_format || (!mix.flags.is_empty() && !mix.extra_flags.is_empty());
         Self::write_header(writer, mix, force_new_format)?;
         if let Some(key) = mix.blowfish_key {
             Self::write_index_encrypted(writer, mix, &key)?;

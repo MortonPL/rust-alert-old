@@ -202,6 +202,7 @@ impl Mix {
         hasher.update(&self.body);
         self.checksum = Some(hasher.finalize().into());
         self.flags.insert(MixHeaderFlags::CHECKSUM);
+        self.is_new_format = true;
     }
 
     /// Set (if Some) or reset (if None) the MIX checksum. Header flags are set appropriately.
@@ -209,6 +210,7 @@ impl Mix {
         self.checksum = checksum;
         if checksum.is_some() {
             self.flags.insert(MixHeaderFlags::CHECKSUM);
+            self.is_new_format = true;
         } else {
             self.flags.remove(MixHeaderFlags::CHECKSUM);
         }
@@ -224,6 +226,7 @@ impl Mix {
         self.blowfish_key = blowfish_key;
         if blowfish_key.is_some() {
             self.flags.insert(MixHeaderFlags::ENCRYPTION);
+            self.is_new_format = true;
         } else {
             self.flags.remove(MixHeaderFlags::ENCRYPTION);
         }

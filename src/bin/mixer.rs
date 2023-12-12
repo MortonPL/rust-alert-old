@@ -14,7 +14,10 @@ use rust_alert::{
     defaultarray,
     ini::io::IniReader,
     mix::{
-        db::{io::{LocalMixDbReader, LocalMixDbWriter}, GlobalMixDatabase, LocalMixDatabase, MixDatabase},
+        db::{
+            io::{LocalMixDbReader, LocalMixDbWriter},
+            GlobalMixDatabase, LocalMixDatabase, MixDatabase,
+        },
         io::{generate_blowfish, MixReader, MixWriter},
         BlowfishKey, Checksum, Mix, MixHeaderFlags, LMD_KEY_TD, LMD_KEY_TS,
     },
@@ -105,7 +108,7 @@ struct BuildArgs {
     #[arg(short, long, default_value_t = false)]
     lmd: bool,
     /// Use old CRC function (TD/RA).
-    #[arg(short, long, default_value_t = true)]
+    #[arg(short, long, default_value_t = false)]
     old_crc: bool,
     /// Allow to overwrite files with the same name.
     #[arg(long, default_value_t = false)]
@@ -328,27 +331,23 @@ fn build_inner(
 ) -> Result<()> {
     let paths = std::fs::read_dir(input)?;
     let mut mix = Mix::default();
-    let lmd = LocalMixDatabase::default();
+    let mut lmd = LocalMixDatabase::default();
     let crc_version = match args.old_crc {
         true => GameEnum::TD,
         false => GameEnum::YR,
     };
     for res in paths {
-        match res {
-            Ok(path) => {
-                let path = path.path();
-                if path.is_dir() {
-                    let mut temp: Vec<u8> = vec![];
-                    build_inner(&mut temp, &path, args, new_mix)?;
-                    mix.add_file_raw(temp, crc(path_to_str(path)?, crc_version))?;
-                } else {
-                    mix.add_file_path(path, crc_version, args.overwrite)?;
-                }
-                if args.lmd {
-                    lmd.db.names.insert(crc(path_to_str(path)?, crc_version), path.file_name());
-                }
-            }
-            Err(e) => Err(e)?,
+        let path = res?.path();
+        let str = path_to_str(&path)?;
+        if path.is_dir() {
+            let mut temp: Vec<u8> = vec![];
+            build_inner(&mut temp, &path, args, new_mix)?;
+            mix.add_file_raw(temp, crc(&str, crc_version))?;
+        } else {
+            mix.add_file_path(path, crc_version, args.overwrite)?;
+        }
+        if args.lmd {
+            lmd.db.names.insert(crc(&str, crc_version), str);
         }
     }
     if args.lmd {
@@ -358,7 +357,7 @@ fn build_inner(
             true => LMD_KEY_TD,
             false => LMD_KEY_TS,
         };
-        mix.add_file_raw(temp, lmd_id);
+        mix.add_file_raw(temp, lmd_id)?;
     }
     if args.encrypt {
         encrypt_mix(&mut mix, &args.key)?;
@@ -550,7 +549,7 @@ fn inspect_header(mix: &mut Mix, has_lmd: bool) {
 fn inspect_index(mix: &mut Mix, mixdb: &GlobalMixDatabase, sort: InspectSortOrderEnum) {
     match sort {
         InspectSortOrderEnum::Id => mix.sort_by_id(),
-        InspectSortOrderEnum::Name => sort_by_name(mix, &mixdb),
+        InspectSortOrderEnum::Name => sort_by_name(mix, mixdb),
         InspectSortOrderEnum::Offset => mix.sort_by_offset(),
         InspectSortOrderEnum::Size => mix.sort_by_size(),
     }
