@@ -9,17 +9,18 @@ Structures and utilities for C&C formats written in Rust.
   - [x] CSF
   - [x] INI
     - [ ] INIX
-  - [ ] MIX
+  - [x] MIX
     - [x] Core
     - [x] Blowfish/RSA
     - [x] LMD/GMD
-    - [ ] SHA1
+    - [x] SHA1
   - [ ] PAL
   - [ ] SHP
 - Tools
   - [x] CSF Builder
   - [ ] MIX Multitool
-  - [ ] MIX DB Multitool
+  - [x] MIX DB Multitool
+  - [ ] INIX transpiler
   - [ ] Mod Builder
   - [ ] PAL Builder
 - Other

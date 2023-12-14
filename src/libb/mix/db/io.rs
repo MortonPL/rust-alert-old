@@ -7,9 +7,7 @@ use std::{
 
 use crate::{
     core::{crc, GameEnum},
-    mix::db::{
-        GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, LocalMixDatabaseInfo, MixDatabase,
-    },
+    mix::db::{GlobalMixDatabase, LMDVersionEnum, LocalMixDatabase, MixDatabase},
 };
 
 /// Prefix of every LMD header.
@@ -42,17 +40,17 @@ pub struct LocalMixDbReader {}
 impl LocalMixDbReader {
     pub fn read_file(reader: &mut dyn Read) -> Result<LocalMixDatabase> {
         // Read the LMD header.
-        let info = Self::read_header(reader)?;
+        let (_, version, size) = Self::read_header(reader)?;
         // Read and process the LMD body.
-        let strings =
-            Self::read_strings(reader, info.size as usize - LMD_HEADER_SIZE, info.version)?;
+        let strings = Self::read_strings(reader, size as usize - LMD_HEADER_SIZE, version)?;
         let mut lmd = LocalMixDatabase::default();
         lmd.db.names.extend(strings);
-        lmd.version = info.version;
+        lmd.db.names.remove(&0);
+        lmd.version = version;
         Ok(lmd)
     }
 
-    pub fn read_header(reader: &mut dyn Read) -> Result<LocalMixDatabaseInfo> {
+    pub fn read_header(reader: &mut dyn Read) -> Result<(u32, LMDVersionEnum, u32)> {
         // Read the mandatory prefix.
         let mut buf = [0u8; LMD_PREFIX.len()];
         reader.read_exact(&mut buf)?;
@@ -69,13 +67,8 @@ impl LocalMixDbReader {
         let version: LMDVersionEnum = u32::from_le_bytes(buf).try_into()?;
         reader.read_exact(&mut buf)?;
         let num_names = u32::from_le_bytes(buf);
-        let lmd = LocalMixDatabaseInfo {
-            num_names,
-            version,
-            size,
-        };
 
-        Ok(lmd)
+        Ok((num_names, version, size))
     }
 
     /// Read LMD body content and generate filename IDs.
@@ -85,13 +78,7 @@ impl LocalMixDbReader {
         version: LMDVersionEnum,
     ) -> Result<Vec<(i32, String)>> {
         // Map LMD version to CRC version.
-        let version = match version {
-            LMDVersionEnum::TD => GameEnum::TD,
-            LMDVersionEnum::RA => GameEnum::RA,
-            LMDVersionEnum::TS => GameEnum::TS,
-            LMDVersionEnum::RA2 => GameEnum::RA2,
-            LMDVersionEnum::YR => GameEnum::YR,
-        };
+        let version = version.into();
         // Read and process strings.
         let mut buf: Vec<u8> = vec![0u8; size];
         reader.read_exact(&mut buf)?;
@@ -125,7 +112,7 @@ impl LocalMixDbWriter {
         writer.write_all(&[0u8, 0, 0, 0])?;
         writer.write_all(&[0u8, 0, 0, 0])?;
         writer.write_all(&TryInto::<u32>::try_into(lmd.version)?.to_le_bytes())?;
-        writer.write_all(&(lmd.db.names.len()).to_le_bytes())?;
+        writer.write_all(&(lmd.db.names.len() as u32).to_le_bytes())?;
 
         Ok(())
     }

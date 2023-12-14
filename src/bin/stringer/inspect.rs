@@ -5,14 +5,14 @@ use rust_alert::csf::io::CsfReader;
 use crate::RunCommand;
 
 #[derive(clap::Args)]
-pub struct InspectArgs {
+pub struct InspectCommand {
     /// Path to an input CSF file.
     input: PathBuf,
 }
 
-impl RunCommand for InspectArgs {
+impl RunCommand for InspectCommand {
     fn run(self) -> crate::Result<()> {
-        let mut reader = OpenOptions::new().read(true).open(&self.input)?;
+        let mut reader = OpenOptions::new().read(true).open(self.input)?;
         let csf = CsfReader::read_file(&mut reader)?;
         println!(
             "Version:      {:?} ({})",

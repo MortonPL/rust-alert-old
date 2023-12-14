@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::utils::BuildNothingHasher;
+use crate::{core::GameEnum, utils::BuildNothingHasher};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -48,6 +48,37 @@ impl TryFrom<LMDVersionEnum> for u32 {
     }
 }
 
+impl From<LMDVersionEnum> for GameEnum {
+    fn from(value: LMDVersionEnum) -> Self {
+        match value {
+            LMDVersionEnum::TD => GameEnum::TD,
+            LMDVersionEnum::RA => GameEnum::RA,
+            LMDVersionEnum::TS => GameEnum::TS,
+            LMDVersionEnum::RA2 => GameEnum::RA2,
+            LMDVersionEnum::YR => GameEnum::YR,
+        }
+    }
+}
+
+impl From<GameEnum> for LMDVersionEnum {
+    fn from(value: GameEnum) -> Self {
+        match value {
+            GameEnum::TD => LMDVersionEnum::TD,
+            GameEnum::RA => LMDVersionEnum::RA,
+            GameEnum::TS => LMDVersionEnum::TS,
+            GameEnum::FS => LMDVersionEnum::TS,
+            GameEnum::RA2 => LMDVersionEnum::RA2,
+            GameEnum::YR => LMDVersionEnum::YR,
+        }
+    }
+}
+
+impl std::fmt::Display for LMDVersionEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
 /// A MIX database is a file mapping unique file IDs into their original names.
 #[derive(Debug, Default, Clone)]
 pub struct MixDatabase {
@@ -82,12 +113,4 @@ impl GlobalMixDatabase {
             .find_map(|x| x.names.get(&id))
             .map_or_else(|| format!("{:0>8X}", id), |x| x.to_string())
     }
-}
-
-/// LMD header info helper struct.
-#[derive(Debug, Default)]
-pub struct LocalMixDatabaseInfo {
-    pub num_names: u32,
-    pub version: LMDVersionEnum,
-    pub size: u32,
 }

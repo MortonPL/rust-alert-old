@@ -7,8 +7,8 @@ mod extract;
 mod inspect;
 
 use build::BuildCommand;
-use extract::ExtractArgs;
-use inspect::InspectArgs;
+use extract::ExtractCommand;
+use inspect::InspectCommand;
 use rust_alert::make_app;
 
 #[derive(Debug, thiserror::Error)]
@@ -44,9 +44,9 @@ enum Commands {
     /// Build CSF from INI.
     Build(BuildCommand),
     /// Extract CSF contents to INI.
-    Extract(ExtractArgs),
+    Extract(ExtractCommand),
     /// Inspect CSF file.
-    Inspect(InspectArgs),
+    Inspect(InspectCommand),
 }
 
 trait RunCommand {

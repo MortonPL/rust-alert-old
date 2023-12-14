@@ -2,10 +2,29 @@
 
 use clap::{Parser, Subcommand};
 
+mod build;
+mod extract;
+mod inspect;
+mod query;
+
+use build::BuildCommand;
+use extract::ExtractCommand;
+use inspect::InspectCommand;
+use query::QueryCommand;
+use rust_alert::make_app;
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("{0}")]
     IO(#[from] std::io::Error),
+    #[error("{0}")]
+    IniIO(#[from] rust_alert::ini::io::Error),
+    #[error("{0}")]
+    LmdIO(#[from] rust_alert::mix::db::io::Error),
+    #[error("{0}")]
+    DBConversionError(#[from] rust_alert::converters::DBConversionError),
+    #[error("{0}")]
+    ParseIntError(#[from] rust_alert::utils::ParseIntError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -23,12 +42,30 @@ struct Args {
 
 /// Modes of operation.
 #[derive(Subcommand)]
-enum Commands {}
+enum Commands {
+    /// Build a database from an INI file.
+    Build(BuildCommand),
+    /// Extract names from the database into an INI file.
+    Extract(ExtractCommand),
+    /// Inspect the database header contents.
+    Inspect(InspectCommand),
+    /// Query the database for an index or name.
+    Query(QueryCommand),
+}
 
-fn main() -> Result<()> {
-    let args = Args::parse();
+trait RunCommand {
+    fn run(self) -> Result<()>;
+}
 
-    match &args.command {
-        _ => todo!(),
+impl RunCommand for Commands {
+    fn run(self) -> Result<()> {
+        match self {
+            Commands::Build(x) => x.run(),
+            Commands::Extract(x) => x.run(),
+            Commands::Inspect(x) => x.run(),
+            Commands::Query(x) => x.run(),
+        }
     }
 }
+
+make_app!(Args);

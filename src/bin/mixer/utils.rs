@@ -56,7 +56,7 @@ pub fn read_db(path: &PathBuf) -> Result<MixDatabase> {
     let reader = OpenOptions::new().read(true).open(path)?;
     let reader = BufReader::new(reader);
     let ini = IniReader::read_file(reader)?;
-    let db = ini2db(&ini)?;
+    let db = ini2db(ini)?;
     Ok(db)
 }
 

@@ -2,10 +2,7 @@ use std::{fs::OpenOptions, io::BufReader, path::PathBuf};
 
 use rust_alert::{
     converters::ini2csf,
-    csf::{
-        io::CsfWriter,
-        CsfLanguageEnum, CsfVersionEnum,
-    },
+    csf::{io::CsfWriter, CsfLanguageEnum, CsfVersionEnum},
     ini::io::IniReader,
 };
 
@@ -41,7 +38,7 @@ impl RunCommand for BuildCommand {
         if self.sort {
             ini.sort_all()
         }
-        let mut csf = ini2csf(&ini);
+        let mut csf = ini2csf(ini);
         csf.language = self.language;
         csf.version = self.version;
         CsfWriter::write_file(&csf, &mut writer)?;

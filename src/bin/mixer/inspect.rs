@@ -71,9 +71,13 @@ impl RunCommand for InspectCommand {
 fn sort_by_name(mix: &mut Mix, db: &GlobalMixDatabase) {
     mix.index.sort_by(|_, f1, _, f2| {
         db.get_name(f1.id)
-            .cloned()
-            .unwrap_or(String::default())
-            .cmp(db.get_name(f2.id).unwrap_or(&String::default()))
+            .unwrap_or(&String::default())
+            .to_lowercase()
+            .cmp(
+                &db.get_name(f2.id)
+                    .unwrap_or(&String::default())
+                    .to_lowercase(),
+            )
     });
 }
 

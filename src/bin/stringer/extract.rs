@@ -1,15 +1,11 @@
 use std::{fs::OpenOptions, path::PathBuf};
 
-use rust_alert::{
-    converters::csf2ini,
-    csf::io::CsfReader,
-    ini::io::IniWriter,
-};
+use rust_alert::{converters::csf2ini, csf::io::CsfReader, ini::io::IniWriter};
 
-use crate::{RunCommand, Result};
+use crate::{Result, RunCommand};
 
 #[derive(clap::Args)]
-pub struct ExtractArgs {
+pub struct ExtractCommand {
     /// Path to an input CSF file.
     input: PathBuf,
     /// Path to an output INI file.
@@ -19,7 +15,7 @@ pub struct ExtractArgs {
     sort: bool,
 }
 
-impl RunCommand for ExtractArgs {
+impl RunCommand for ExtractCommand {
     fn run(self) -> Result<()> {
         let mut reader = OpenOptions::new().read(true).open(&self.input)?;
         let mut writer = OpenOptions::new()
@@ -28,7 +24,7 @@ impl RunCommand for ExtractArgs {
             .truncate(true)
             .open(&self.output)?;
         let csf = CsfReader::read_file(&mut reader)?;
-        let mut ini = csf2ini(&csf)?;
+        let mut ini = csf2ini(csf)?;
         if self.sort {
             ini.sort_all();
         }

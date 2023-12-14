@@ -10,9 +10,9 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn csf2ini(csf: &CsfStringtable) -> Result<IniFile> {
+pub fn csf2ini(mut csf: CsfStringtable) -> Result<IniFile> {
     let mut ini = IniFile::default();
-    for (name, label) in csf.iter() {
+    for (name, label) in csf.drain() {
         let value = &label
             .get_first()
             .ok_or(Error::EmptyLabel(name.to_string()))?
@@ -28,11 +28,11 @@ pub fn csf2ini(csf: &CsfStringtable) -> Result<IniFile> {
     Ok(ini)
 }
 
-pub fn ini2csf(ini: &IniFile) -> CsfStringtable {
+pub fn ini2csf(mut ini: IniFile) -> CsfStringtable {
     let mut csf = CsfStringtable::default();
-    for (name, section) in ini.iter() {
-        for (key, value) in section.iter() {
-            let value = &value.value.replace("\\n", "\n");
+    for (name, mut section) in ini.drain() {
+        for (key, value) in section.drain() {
+            let value = value.value.replace("\\n", "\n");
             csf.create_label(format!("{name}:{key}"), value);
         }
     }

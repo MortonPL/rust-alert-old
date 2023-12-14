@@ -117,6 +117,19 @@ impl<'a> Iterator for CsfStringtableIter<'a> {
     }
 }
 
+/// Drain over CsfStringtable labels.
+pub struct CsfStringtableDrain<'a> {
+    iter: std::collections::hash_map::Drain<'a, String, CsfLabel>,
+}
+
+impl<'a> Iterator for CsfStringtableDrain<'a> {
+    type Item = (String, CsfLabel);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 /// A CSF file contains a header and a list of CSF labels.
 /// Labels are stored as a dictionary for easy manipulation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -135,6 +148,12 @@ impl CsfStringtable {
     pub fn iter(&self) -> CsfStringtableIter {
         CsfStringtableIter {
             iter: self.labels.iter(),
+        }
+    }
+
+    pub fn drain(&mut self) -> CsfStringtableDrain {
+        CsfStringtableDrain {
+            iter: self.labels.drain(),
         }
     }
 

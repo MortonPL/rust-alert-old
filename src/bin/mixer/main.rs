@@ -2,7 +2,7 @@
 
 use clap::{Parser, Subcommand};
 
-use rust_alert::{utils::PathToStringError, make_app};
+use rust_alert::{make_app, utils::PathToStringError};
 
 mod blowfish;
 mod build;

@@ -25,10 +25,29 @@ impl<'a> Iterator for IniFileIter<'a> {
     }
 }
 
+/// Drain over INI sections.
+pub struct IniFileDrain<'a> {
+    iter: indexmap::map::Drain<'a, String, IniSection>,
+}
+
+impl<'a> Iterator for IniFileDrain<'a> {
+    type Item = (String, IniSection);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 impl IniFile {
     pub fn iter(&self) -> IniFileIter {
         IniFileIter {
             iter: self.sections.iter(),
+        }
+    }
+
+    pub fn drain(&mut self) -> IniFileDrain {
+        IniFileDrain {
+            iter: self.sections.drain(..),
         }
     }
 
@@ -108,6 +127,19 @@ impl<'a> Iterator for IniSectionIter<'a> {
     }
 }
 
+/// Drain over section entries.
+pub struct IniSectionDrain<'a> {
+    iter: indexmap::map::Drain<'a, String, IniEntry>,
+}
+
+impl<'a> Iterator for IniSectionDrain<'a> {
+    type Item = (String, IniEntry);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 impl IniSection {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -124,6 +156,12 @@ impl IniSection {
     pub fn iter(&self) -> IniSectionIter {
         IniSectionIter {
             iter: self.entries.iter(),
+        }
+    }
+
+    pub fn drain(&mut self) -> IniSectionDrain {
+        IniSectionDrain {
+            iter: self.entries.drain(..),
         }
     }
 
