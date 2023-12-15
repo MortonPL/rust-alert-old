@@ -1,5 +1,5 @@
 /// Prints Option's value or None.
-/// /// # Example:
+/// # Example:
 /// ```rs
 /// let x = Some(1);
 /// printoptionln!("{}", x);  // will print "2"
