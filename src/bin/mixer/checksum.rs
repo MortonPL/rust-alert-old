@@ -22,7 +22,7 @@ pub struct ChecksumCommand {
 
 impl RunCommand for ChecksumCommand {
     /// Add checksum to MIX, remove checksum from MIX, or check if checksum in the MIX is true.
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, _safe_mode: bool) -> Result<()> {
         let mut mix = read_mix(&self.input, force_new_format)?;
         match self.mode {
             ChecksumMode::Add => {
@@ -37,7 +37,11 @@ impl RunCommand for ChecksumCommand {
                 return compare_checksum(&mut mix);
             }
         };
-        write_mix(&mut mix, &self.output, &self.input, force_new_format)?;
+        write_mix(
+            &mut mix,
+            &self.output.unwrap_or(self.input),
+            force_new_format,
+        )?;
         match self.mode {
             ChecksumMode::Add => println!("Checksum added successfully."),
             ChecksumMode::Remove => println!("Checksum removed successfully."),

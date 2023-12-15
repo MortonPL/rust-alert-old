@@ -8,7 +8,6 @@ mod blowfish;
 mod build;
 mod checksum;
 mod compact;
-mod corrupt;
 mod extract;
 mod inspect;
 mod utils;
@@ -17,7 +16,6 @@ use blowfish::BlowfishCommand;
 use build::BuildCommand;
 use checksum::ChecksumCommand;
 use compact::CompactCommand;
-use corrupt::CorruptCommand;
 use extract::ExtractCommand;
 use inspect::InspectCommand;
 
@@ -59,6 +57,9 @@ struct Args {
     /// Force new mix format, useful if extra flags are non-0.
     #[arg(long, default_value_t = false)]
     new_mix: bool,
+    /// Safe mode ignores LMDs, but may prevent crashes.
+    #[arg(long, default_value_t = false)]
+    safe_mode: bool,
 }
 
 /// Modes of operation.
@@ -70,8 +71,6 @@ enum Commands {
     Checksum(ChecksumCommand),
     /// Compact (remove unused data from) the MIX body.
     Compact(CompactCommand),
-    /// Secure the MIX with a suite of anti-ripper corruptions.
-    Corrupt(CorruptCommand),
     /// Encrypt/Decrypt a MIX file or extract stored key.
     Blowfish(BlowfishCommand),
     /// Extract MIX contents to folder.
@@ -82,21 +81,20 @@ enum Commands {
 }
 
 impl RunCommand for Commands {
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, safe_mode: bool) -> Result<()> {
         match self {
-            Commands::Build(x) => x.run(force_new_format),
-            Commands::Checksum(x) => x.run(force_new_format),
-            Commands::Compact(x) => x.run(force_new_format),
-            Commands::Corrupt(x) => x.run(force_new_format),
-            Commands::Blowfish(x) => x.run(force_new_format),
-            Commands::Extract(x) => x.run(force_new_format),
-            Commands::Inspect(x) => x.run(force_new_format),
+            Commands::Build(x) => x.run(force_new_format, safe_mode),
+            Commands::Checksum(x) => x.run(force_new_format, safe_mode),
+            Commands::Compact(x) => x.run(force_new_format, safe_mode),
+            Commands::Blowfish(x) => x.run(force_new_format, safe_mode),
+            Commands::Extract(x) => x.run(force_new_format, safe_mode),
+            Commands::Inspect(x) => x.run(force_new_format, safe_mode),
         }
     }
 }
 
 trait RunCommand {
-    fn run(self, force_new_format: bool) -> Result<()>;
+    fn run(self, force_new_format: bool, safe_mode: bool) -> Result<()>;
 }
 
-make_app!(Args, new_mix);
+make_app!(Args, new_mix, safe_mode);

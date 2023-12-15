@@ -241,12 +241,12 @@ impl MixWriter {
             } else {
                 // Just write header.
                 writer.write_all(&(mix.index.len() as u16).to_le_bytes())?;
-                writer.write_all(&mix.declared_body_size.to_le_bytes())?;
+                writer.write_all(&(mix.get_body_size() as u32).to_le_bytes())?;
             }
         } else {
             // Old MIX format (TD).
             writer.write_all(&(mix.index.len() as u16).to_le_bytes())?;
-            writer.write_all(&mix.declared_body_size.to_le_bytes())?;
+            writer.write_all(&(mix.get_body_size() as u32).to_le_bytes())?;
         }
         Ok(())
     }

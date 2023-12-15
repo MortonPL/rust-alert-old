@@ -24,7 +24,7 @@ pub struct BlowfishCommand {
 
 impl RunCommand for BlowfishCommand {
     /// Encrypt, decrypt MIX or extract the key.
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, _safe_mode: bool) -> Result<()> {
         let mut mix = read_mix(&self.input, force_new_format)?;
         match self.mode {
             BlowfishMode::Decrypt => {
@@ -34,7 +34,11 @@ impl RunCommand for BlowfishCommand {
             BlowfishMode::Encrypt => encrypt_mix(&mut mix, &self.key),
             BlowfishMode::Get => get_mix_key(&mix, &self.key),
         }?;
-        write_mix(&mut mix, &self.output, &self.input, force_new_format)?;
+        write_mix(
+            &mut mix,
+            &self.output.unwrap_or(self.input),
+            force_new_format,
+        )?;
         Ok(())
     }
 }

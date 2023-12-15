@@ -23,17 +23,12 @@ pub fn read_mix(input: &PathBuf, new_mix: bool) -> Result<Mix> {
     Ok(mix)
 }
 
-pub fn write_mix(
-    mix: &mut Mix,
-    output: &Option<PathBuf>,
-    default: &PathBuf,
-    new_mix: bool,
-) -> Result<()> {
+pub fn write_mix(mix: &mut Mix, output: &PathBuf, new_mix: bool) -> Result<()> {
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(output.as_ref().unwrap_or(default))?;
+        .open(output)?;
     MixWriter::write_file(&mut writer, mix, new_mix)?;
     Ok(())
 }
@@ -85,12 +80,18 @@ pub fn read_lmd(mix: &Mix) -> Option<LocalMixDatabase> {
 }
 
 /// Read GMD & LMD and merge them.
-pub fn prepare_databases(mix: &Mix, gmd: MixDatabase) -> Result<(GlobalMixDatabase, bool)> {
+pub fn prepare_databases(
+    mix: &Mix,
+    gmd: MixDatabase,
+    safe_mode: bool,
+) -> Result<(GlobalMixDatabase, bool)> {
     let mut mixdb = GlobalMixDatabase::default();
     let mut has_lmd = false;
-    if let Some(lmd) = read_lmd(mix) {
-        mixdb.dbs.push(lmd.db);
-        has_lmd = true;
+    if !safe_mode {
+        if let Some(lmd) = read_lmd(mix) {
+            mixdb.dbs.push(lmd.db);
+            has_lmd = true;
+        }
     }
     mixdb.dbs.push(gmd);
     Ok((mixdb, has_lmd))

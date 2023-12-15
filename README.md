@@ -20,6 +20,7 @@ Structures and utilities for C&C formats written in Rust.
   - [x] CSF Builder
   - [ ] MIX Multitool
   - [x] MIX DB Multitool
+  - [x] MIX Cracker/Locker
   - [ ] INIX transpiler
   - [ ] Mod Builder
   - [ ] PAL Builder

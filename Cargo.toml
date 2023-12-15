@@ -46,6 +46,10 @@ name = "mixer"
 path = "src/bin/mixer/main.rs"
 
 [[bin]]
+name = "mixcracker"
+path = "src/bin/mixcracker/main.rs"
+
+[[bin]]
 name = "mixdb"
 path = "src/bin/mixdb/main.rs"
 

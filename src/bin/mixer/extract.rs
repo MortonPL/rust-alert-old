@@ -30,7 +30,7 @@ use crate::{
 
 impl RunCommand for ExtractCommand {
     /// Extract all files from a MIX.
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, safe_mode: bool) -> Result<()> {
         let mut reader = OpenOptions::new().read(true).open(&self.input)?;
         let gmd = self
             .db
@@ -38,7 +38,14 @@ impl RunCommand for ExtractCommand {
             .map(|p| read_db(&p))
             .transpose()?
             .unwrap_or_default();
-        extract_inner(&mut reader, &self.output, &self, force_new_format, &gmd)?;
+        extract_inner(
+            &mut reader,
+            &self.output,
+            &self,
+            force_new_format,
+            &gmd,
+            safe_mode,
+        )?;
         Ok(())
     }
 }
@@ -49,10 +56,11 @@ fn extract_inner(
     args: &ExtractCommand,
     new_mix: bool,
     gmd: &MixDatabase,
+    safe_mode: bool,
 ) -> Result<()> {
     let mix = MixReader::read_file(reader, new_mix)?;
     std::fs::create_dir_all(output_dir)?;
-    let (mixdb, _) = prepare_databases(&mix, gmd.clone())?;
+    let (mixdb, _) = prepare_databases(&mix, gmd.clone(), safe_mode)?;
 
     for file in mix.index.values() {
         let filename = mixdb.get_name_or_id(file.id);
@@ -63,7 +71,14 @@ fn extract_inner(
         if args.recursive && filename.ends_with(".mix") {
             let mix_reader: &mut dyn Read =
                 &mut mix.get_file(file.id).unwrap_or_else(|| unreachable!());
-            extract_inner(mix_reader, &output_dir.join(filename), args, new_mix, gmd)?;
+            extract_inner(
+                mix_reader,
+                &output_dir.join(filename),
+                args,
+                new_mix,
+                gmd,
+                safe_mode,
+            )?;
         } else {
             let data = mix.get_file(file.id).unwrap_or_else(|| unreachable!());
             write(output_dir.join(filename), data)?;

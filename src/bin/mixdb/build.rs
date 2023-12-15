@@ -29,9 +29,10 @@ impl RunCommand for BuildCommand {
             .truncate(true)
             .open(self.output)?;
         let ini = IniReader::read_file(&mut reader)?;
-        let mut lmd = LocalMixDatabase::default();
-        lmd.db = ini2db(ini)?;
-        lmd.version = self.version;
+        let lmd = LocalMixDatabase {
+            db: ini2db(ini)?,
+            version: self.version,
+        };
         LocalMixDbWriter::write_file(&mut writer, &lmd)?;
         Ok(())
     }

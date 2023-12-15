@@ -286,7 +286,6 @@ mod tests {
         let expected = CsfString::new(str);
         let actual = CsfReader::read_string(reader);
 
-        dbg!(&actual);
         assert!(actual.is_ok());
         unwrap_assert!(actual, expected);
     }

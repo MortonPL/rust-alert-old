@@ -45,7 +45,7 @@ impl std::fmt::Display for InspectSortOrderEnum {
 
 impl RunCommand for InspectCommand {
     /// Inspect the MIX, printing useful header information and/or index contents.
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, safe_mode: bool) -> Result<()> {
         let mut reader = OpenOptions::new().read(true).open(self.input)?;
         let mut mix = MixReader::read_file(&mut reader, force_new_format)?;
         let gmd = self
@@ -53,9 +53,9 @@ impl RunCommand for InspectCommand {
             .map(|p| read_db(&p))
             .transpose()?
             .unwrap_or_default();
-        let (mixdb, has_lmd) = prepare_databases(&mix, gmd)?;
+        let (mixdb, has_lmd) = prepare_databases(&mix, gmd, safe_mode)?;
         if !self.no_header {
-            inspect_header(&mut mix, has_lmd);
+            inspect_header(&mut mix, has_lmd, safe_mode);
             if !self.no_index {
                 println!();
             }
@@ -81,7 +81,7 @@ fn sort_by_name(mix: &mut Mix, db: &GlobalMixDatabase) {
     });
 }
 
-fn inspect_header(mix: &mut Mix, has_lmd: bool) {
+fn inspect_header(mix: &mut Mix, has_lmd: bool, safe_mode: bool) {
     println!(
         "Mix type:           {}",
         if mix.is_new_format {
@@ -105,7 +105,12 @@ fn inspect_header(mix: &mut Mix, has_lmd: bool) {
     printoptionmapln!("Checksum (SHA1):    {:?}", mix.checksum, |x: Checksum| x
         .map(|c| format!("{:X?}", c))
         .concat());
-    println!("Has LMD:            {}", has_lmd);
+    let msg = if safe_mode {
+        "NO - SAFE MODE".to_string()
+    } else {
+        has_lmd.to_string()
+    };
+    println!("Has LMD:            {}", msg);
 }
 
 fn inspect_index(mix: &mut Mix, mixdb: &GlobalMixDatabase, sort: InspectSortOrderEnum) {

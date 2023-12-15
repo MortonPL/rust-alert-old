@@ -236,14 +236,14 @@ impl Mix {
     /// This method sorts the MIX index by offset.
     pub fn is_compact(&mut self) -> bool {
         self.sort_by_offset();
-        let mut ptr = 0;
+        let mut ptr = 0i64;
         for file in self.index.values() {
             // Empty space.
-            if file.offset > ptr {
+            if file.offset as i64 > ptr {
                 return false;
             }
             // Compact or overlapping files.
-            ptr += file.size - (ptr - file.offset);
+            ptr += file.size as i64 - (ptr - file.offset as i64);
         }
         true
     }
@@ -268,7 +268,7 @@ impl Mix {
 }
 
 /// A MIX index entry identifies and localizes a single file in the MIX body.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MixIndexEntry {
     pub id: i32,
     pub offset: u32,

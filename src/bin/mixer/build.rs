@@ -44,7 +44,7 @@ pub struct BuildCommand {
 
 impl RunCommand for BuildCommand {
     /// Build a MIX from files.
-    fn run(self, force_new_format: bool) -> Result<()> {
+    fn run(self, force_new_format: bool, _safe_mode: bool) -> Result<()> {
         let mut writer = OpenOptions::new()
             .write(true)
             .create(true)
