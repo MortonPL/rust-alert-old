@@ -18,7 +18,7 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] SHP
 - Tools
   - [x] CSF Builder
-  - [ ] MIX Multitool
+  - [x] MIX Multitool
   - [x] MIX DB Multitool
   - [x] MIX Cracker/Locker
   - [ ] INIX transpiler
