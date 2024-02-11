@@ -38,8 +38,6 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] Profile and optimize stuff
   - [ ] Good tests/code coverage
 
-## TODO Say that the building process uses cargo-make
-
 ## Misc
 
 Code coverage tool used: [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)

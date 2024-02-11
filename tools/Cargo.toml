@@ -1,0 +1,30 @@
+[package]
+name = "rust-alert-tools"
+version = "0.1.0"
+edition = "2021"
+description = "Tools for C&C modding using rust-alert."
+license = "MIT"
+
+[dependencies]
+rust-alert = {path = "../library"}
+anyhow = "1.0.79"
+clap = { version = "4.4.7", features = ["derive"] }
+rand = "0.8.5"
+static_assertions = "1.1.0"
+thiserror = "1.0.49"
+
+[[bin]]
+name = "mixer"
+path = "src/mixer/main.rs"
+
+[[bin]]
+name = "mixdb"
+path = "src/mixdb/main.rs"
+
+[[bin]]
+name = "stringer"
+path = "src/stringer/main.rs"
+
+[[bin]]
+name = "mixcracker"
+path = "src/mixcracker/main.rs"
