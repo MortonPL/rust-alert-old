@@ -15,7 +15,9 @@ pub enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 /// LMD format version (XCC addition, not in the vanilla game). Doesn't seem to do anything.
-#[derive(Clone, Copy, Debug, Default, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u32)]
 pub enum LMDVersionEnum {
     TD = 0,
@@ -81,12 +83,14 @@ impl std::fmt::Display for LMDVersionEnum {
 
 /// A MIX database is a file mapping unique file IDs into their original names.
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MixDatabase {
     pub names: HashMap<i32, String, BuildNothingHasher>,
 }
 
 /// A local MIX database is a file within a MIX. XCC addition.
 #[derive(Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocalMixDatabase {
     pub db: MixDatabase,
     pub version: LMDVersionEnum,
@@ -94,6 +98,7 @@ pub struct LocalMixDatabase {
 
 /// A global MIX database is a separate file containing several databases. XCC addition.
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlobalMixDatabase {
     pub dbs: Vec<MixDatabase>,
 }

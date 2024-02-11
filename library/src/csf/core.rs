@@ -2,8 +2,6 @@
 
 use std::collections::HashMap;
 
-use clap::ValueEnum;
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -18,7 +16,9 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// CSF format version. "Nothing is known about the actual difference between the versions."
 /// \[[source](https://modenc.renegadeprojects.com/CSF_File_Format#The_Header)\]
-#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u32)]
 pub enum CsfVersionEnum {
     /// Nox (2000), by Westwood studios.
@@ -50,7 +50,9 @@ impl TryFrom<CsfVersionEnum> for u32 {
 
 /// CSF language ID used for localisation.
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u32)]
 pub enum CsfLanguageEnum {
     /// English (United States)
@@ -133,6 +135,7 @@ impl<'a> Iterator for CsfStringtableDrain<'a> {
 /// A CSF file contains a header and a list of CSF labels.
 /// Labels are stored as a dictionary for easy manipulation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CsfStringtable {
     /// Map of labels with their names as keys.
     pub labels: HashMap<String, CsfLabel>,
@@ -198,6 +201,7 @@ impl CsfStringtable {
 /// A CSF label contains a name and a collection of CSF strings.
 /// Every label in vanilla RA2/YR files contains only one string.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CsfLabel {
     /// Name of the label. Game rules, GUI and triggers look up this value.
     pub name: String,
@@ -223,6 +227,7 @@ impl CsfLabel {
 /// normal (prefix RTS) and with extra value (prefix WRTS) which can contain an additional ASCII string.
 /// All vanilla game strings are normal.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CsfString {
     /// Content of a string.
     pub value: String,

@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 /// Sections and entries can be looked-up and their order is maintained.
 /// Each section has a unique name.
 #[derive(Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IniFile {
     /// Map of sections indexed by their names.
     sections: IndexMap<String, IniSection>,
@@ -109,6 +110,7 @@ impl IniFile {
 /// An INI section is a representation of a named object, described by a collection
 /// of key-value pairs.
 #[derive(Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IniSection {
     name: String,
     entries: IndexMap<String, IniEntry>,
@@ -207,6 +209,7 @@ impl IniSection {
 /// An INI entry is a key-value pair belonging to a section.
 /// All data is stored as a string.
 #[derive(Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IniEntry {
     key: String,
     pub value: String,
