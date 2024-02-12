@@ -8,6 +8,7 @@ use std::{
 
 use crate::csf::{CsfLabel, CsfString, CsfStringtable};
 
+/// The error type for serialization and deserialization of CSF stringtables.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -26,6 +27,7 @@ pub enum Error {
     CSF(#[from] crate::csf::Error),
 }
 
+#[doc(hidden)]
 type Result<T> = std::result::Result<T, Error>;
 
 struct CsfPrefixes {}
@@ -51,9 +53,9 @@ impl CsfReader {
         // Read file header.
         let (mut csf, num_labels) = Self::read_csf_header(reader)?;
         // Read all labels.
-        csf.labels.reserve(num_labels as usize);
+        csf.reserve(num_labels as usize);
         for _ in 0..num_labels {
-            csf.add_label(Self::read_label(reader)?);
+            csf.insert(Self::read_label(reader)?);
         }
 
         Ok(csf)
@@ -131,7 +133,7 @@ impl CsfReader {
             let extra_len = u32::from_le_bytes(buf) as usize;
             let mut buf = vec![0u8; extra_len];
             reader.read_exact(&mut buf)?;
-            string.extra_value = String::from_utf8(buf)?;
+            string.extra_value = buf;
         }
 
         Ok(string)
@@ -158,7 +160,7 @@ impl CsfWriter {
     pub fn write_file(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
         writer.write_all(CsfPrefixes::CSF_PREFIX)?;
         Self::write_csf_header(csf, writer)?;
-        for label in csf.labels.values() {
+        for label in csf.iter() {
             CsfWriter::write_label(label, writer)?;
         }
 
@@ -168,8 +170,8 @@ impl CsfWriter {
     /// Write a CSF file header for a provided stringtable.
     pub fn write_csf_header(csf: &CsfStringtable, writer: &mut dyn Write) -> Result<()> {
         writer.write_all(&TryInto::<u32>::try_into(csf.version)?.to_le_bytes())?;
-        writer.write_all(&(csf.get_label_count() as u32).to_le_bytes())?;
-        writer.write_all(&(csf.get_string_count() as u32).to_le_bytes())?;
+        writer.write_all(&(csf.len() as u32).to_le_bytes())?;
+        writer.write_all(&(csf.strings_len() as u32).to_le_bytes())?;
         writer.write_all(&csf.extra.to_le_bytes())?;
         writer.write_all(&TryInto::<u32>::try_into(csf.language)?.to_le_bytes())?;
 
@@ -208,7 +210,7 @@ impl CsfWriter {
         writer.write_all(&utf16)?;
         if has_extra {
             writer.write_all(&extra_len.to_le_bytes())?;
-            writer.write_all(string.extra_value.as_bytes())?;
+            writer.write_all(&string.extra_value)?;
         }
 
         Ok(())
@@ -225,7 +227,7 @@ impl CsfWriter {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, io::Read};
+    use std::{collections::HashSet, io::Read};
 
     use crate::{
         csf::{
@@ -332,12 +334,7 @@ mod tests {
         let buf = make_header();
         let reader: &mut dyn Read = &mut buf.as_slice();
 
-        let expected = CsfStringtable {
-            version: CsfVersionEnum::Cnc,
-            language: CsfLanguageEnum::ENUS,
-            extra: 0,
-            ..Default::default()
-        };
+        let expected = CsfStringtable::default();
         let expected_len = 1;
         let actual = CsfReader::read_csf_header(reader);
 
@@ -354,15 +351,11 @@ mod tests {
         let string = "String";
         let buf = make_stringtable(label, string, "");
         let reader: &mut dyn Read = &mut buf.as_slice();
-        let mut labels: HashMap<String, CsfLabel> = HashMap::default();
-        labels.insert(label.to_string(), CsfLabel::new(label, string));
+        let mut labels: HashSet<CsfLabel> = Default::default();
+        labels.insert(CsfLabel::new(label, string));
 
-        let expected = CsfStringtable {
-            version: CsfVersionEnum::Cnc,
-            language: CsfLanguageEnum::ENUS,
-            extra: 0,
-            labels,
-        };
+        let mut expected = CsfStringtable::default();
+        expected.extend(labels);
         let actual = CsfReader::read_file(reader);
 
         assert!(actual.is_ok());
@@ -424,8 +417,8 @@ mod tests {
     /// Write a CsfStringtable (OK).
     fn write_stringtable_ok() {
         let mut expected = CsfStringtable::default();
-        expected.create_label("Label", "String");
-        expected.create_label("Label2", "String2");
+        expected.create("Label", "String");
+        expected.create("Label2", "String2");
 
         let mut buf: Vec<u8> = vec![];
         let res = CsfWriter::write_file(&expected, &mut buf);

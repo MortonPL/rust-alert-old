@@ -25,12 +25,11 @@ impl RunCommand for InspectCommand {
             TryInto::<u32>::try_into(csf.language)?
         );
         println!("Extra data:   {:X}", csf.extra);
-        println!("# of labels:  {:?}", csf.get_label_count());
-        println!("# of strings: {:?}", csf.get_string_count());
+        println!("# of labels:  {:?}", csf.len());
+        println!("# of strings: {:?}", csf.strings_len());
         println!(
             "Contains WSTRs: {:?}",
-            csf.labels
-                .values()
+            csf.iter()
                 .any(|l| l.get_first().is_some_and(|s| !s.extra_value.is_empty()))
         );
         Ok(())

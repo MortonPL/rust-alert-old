@@ -12,16 +12,16 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub fn csf2ini(mut csf: CsfStringtable) -> Result<IniFile> {
     let mut ini = IniFile::default();
-    for (name, label) in csf.drain() {
+    for label in csf.drain() {
         let value = &label
             .get_first()
-            .ok_or(Error::EmptyLabel(name.to_string()))?
+            .ok_or(Error::EmptyLabel(label.name.to_string()))?
             .value
             .replace('\n', "\\n");
-        let mut iter = name.split(':');
+        let mut iter = label.name.split(':');
         let kv = match (iter.next(), iter.next()) {
             (Some(k), Some(v)) => Ok((k, v)),
-            _ => Err(Error::NoSplit(name.to_string())),
+            _ => Err(Error::NoSplit(label.name.to_string())),
         }?;
         ini.add_to_section(kv.0, kv.1, value);
     }
@@ -33,7 +33,7 @@ pub fn ini2csf(mut ini: IniFile) -> CsfStringtable {
     for (name, mut section) in ini.drain() {
         for (key, value) in section.drain() {
             let value = value.value.replace("\\n", "\n");
-            csf.create_label(format!("{name}:{key}"), value);
+            csf.create(format!("{name}:{key}"), value);
         }
     }
     csf
