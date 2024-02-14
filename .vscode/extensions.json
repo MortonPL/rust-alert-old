@@ -3,7 +3,6 @@
         "davidanson.vscode-markdownlint",
         "ms-vscode.hexeditor",
         "rust-lang.rust-analyzer",
-        "ryanluker.vscode-coverage-gutters",
         "swellaby.vscode-rust-test-adapter",
         "tamasfe.even-better-toml",
     ]

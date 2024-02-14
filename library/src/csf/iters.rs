@@ -14,8 +14,8 @@ use crate::csf::CsfLabel;
 ///
 /// # Examples
 ///
-/// ```
-/// use rust_alert::csf::{Iter, CsfStringtable};
+/// ```ignore
+/// use rust_alert::csf::CsfStringtable;
 ///
 /// let csf = CsfStringtable::default();
 /// let mut iter = csf.iter();
@@ -47,8 +47,8 @@ impl<'a> From<HashSetIter<'a, CsfLabel>> for Iter<'a> {
 ///
 /// # Examples
 ///
-/// ```
-/// use rust_alert::csf::{Iter, CsfStringtable};
+/// ```ignore
+/// use rust_alert::csf::CsfStringtable;
 ///
 /// let csf = CsfStringtable::default();
 /// let mut iter = csf.into_iter();
@@ -79,8 +79,8 @@ impl From<HashSetIntoIter<CsfLabel>> for IntoIter {
 ///
 /// # Examples
 ///
-/// ```
-/// use rust_alert::csf::{Iter, CsfStringtable};
+/// ```ignore
+/// use rust_alert::csf::CsfStringtable;
 ///
 /// let mut csf = CsfStringtable::default();
 /// let mut iter = csf.drain();
@@ -100,5 +100,44 @@ impl<'a> Iterator for Drain<'a> {
 impl<'a> From<HashSetDrain<'a, CsfLabel>> for Drain<'a> {
     fn from(iter: HashSetDrain<'a, CsfLabel>) -> Self {
         Self { iter }
+    }
+}
+
+#[cfg(test)]
+mod examples {
+    mod iter {
+        use crate as rust_alert;
+
+        #[test]
+        fn next() {
+            use rust_alert::csf::CsfStringtable;
+
+            let csf = CsfStringtable::default();
+            let mut _iter = csf.iter();
+        }
+    }
+
+    mod into_iter {
+        use crate as rust_alert;
+
+        #[test]
+        fn next() {
+            use rust_alert::csf::CsfStringtable;
+
+            let csf = CsfStringtable::default();
+            let mut _iter = csf.into_iter();
+        }
+    }
+
+    mod drain {
+        use crate as rust_alert;
+
+        #[test]
+        fn next() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+            let mut _iter = csf.drain();
+        }
     }
 }

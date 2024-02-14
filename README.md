@@ -37,7 +37,3 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] CI
   - [ ] Profile and optimize stuff
   - [ ] Good tests/code coverage
-
-## Misc
-
-Code coverage tool used: [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)

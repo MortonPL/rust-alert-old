@@ -23,7 +23,11 @@ pub enum CsfVersionEnum {
 
 impl Display for CsfVersionEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        let string = match self {
+            Self::Nox => "Nox",
+            Self::Cnc => "Cnc",
+        };
+        write!(f, "{}", string)
     }
 }
 
@@ -82,7 +86,19 @@ pub enum CsfLanguageEnum {
 
 impl Display for CsfLanguageEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        let string = match self {
+            Self::ENUS => "ENUS",
+            Self::ENUK => "ENUK",
+            Self::DE => "DE",
+            Self::FR => "FR",
+            Self::ES => "ES",
+            Self::IT => "IT",
+            Self::JA => "JA",
+            Self::XX => "Unknown",
+            Self::KO => "KO",
+            Self::ZHCN => "ZHCN",
+        };
+        write!(f, "{:?}", string)
     }
 }
 
@@ -111,5 +127,86 @@ impl TryFrom<CsfLanguageEnum> for u32 {
 
     fn try_from(value: CsfLanguageEnum) -> Result<Self> {
         Ok(value as u32)
+    }
+}
+
+#[cfg(test)]
+mod coverage {
+    mod csf_version_enum {
+        use crate::csf::CsfVersionEnum;
+
+        #[test]
+        fn try_from() {
+            for (e, i) in [(CsfVersionEnum::Cnc, 3), (CsfVersionEnum::Nox, 2)] {
+                let result: Result<u32, _> = e.try_into();
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), i);
+                let result: Result<CsfVersionEnum, _> = i.try_into();
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), e);
+            }
+
+            let result: Result<CsfVersionEnum, _> = 255.try_into();
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn display() {
+            for e in [CsfVersionEnum::Cnc, CsfVersionEnum::Nox] {
+                assert!(!format!("{e}").is_empty());
+            }
+        }
+    }
+
+    mod csf_language_enum {
+        use crate::csf::CsfLanguageEnum;
+
+        #[test]
+        fn try_from() {
+            for (i, e) in [
+                CsfLanguageEnum::ENUS,
+                CsfLanguageEnum::ENUK,
+                CsfLanguageEnum::DE,
+                CsfLanguageEnum::FR,
+                CsfLanguageEnum::ES,
+                CsfLanguageEnum::IT,
+                CsfLanguageEnum::JA,
+                CsfLanguageEnum::XX,
+                CsfLanguageEnum::KO,
+                CsfLanguageEnum::ZHCN,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let i = i as u32;
+                let result: Result<u32, _> = e.try_into();
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), i);
+                let result: Result<CsfLanguageEnum, _> = i.try_into();
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), e);
+            }
+
+            let result: Result<CsfLanguageEnum, _> = 255.try_into();
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn display() {
+            for e in [
+                CsfLanguageEnum::ENUS,
+                CsfLanguageEnum::ENUK,
+                CsfLanguageEnum::DE,
+                CsfLanguageEnum::FR,
+                CsfLanguageEnum::ES,
+                CsfLanguageEnum::IT,
+                CsfLanguageEnum::JA,
+                CsfLanguageEnum::XX,
+                CsfLanguageEnum::KO,
+                CsfLanguageEnum::ZHCN,
+            ] {
+                assert!(!format!("{e}").is_empty());
+            }
+        }
     }
 }

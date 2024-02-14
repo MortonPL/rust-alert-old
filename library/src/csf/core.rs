@@ -1,5 +1,4 @@
-//! CSF (stringtable) structures and manipulation.
-
+//! CSF (stringtable) structure definitions and manipulation methods.
 use std::collections::HashSet;
 
 use crate::csf::{enums::*, iters::*};
@@ -37,7 +36,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfVersionEnum, CsfLanguageEnum};
     ///
     /// let csf = CsfStringtable::new(CsfVersionEnum::Cnc, CsfLanguageEnum::DE, 42);
@@ -59,7 +58,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfLabel};
     ///
     /// let mut csf = CsfStringtable::default();
@@ -86,7 +85,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfLabel};
     ///
     /// let mut csf = CsfStringtable::default();
@@ -115,7 +114,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfLabel};
     ///
     /// let mut csf = CsfStringtable::default();
@@ -144,7 +143,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::*;
     ///
     /// let mut csf = CsfStringtable::default();
@@ -168,7 +167,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfLabel};
     ///
     /// let mut csf = CsfStringtable::default();
@@ -199,7 +198,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfStringtable;
     ///
     /// let mut csf = CsfStringtable::default();
@@ -225,7 +224,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfStringtable;
     ///
     /// let mut csf = CsfStringtable::default();
@@ -253,7 +252,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfStringtable;
     ///
     /// let mut csf = CsfStringtable::default();
@@ -281,7 +280,7 @@ impl CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfStringtable;
     ///
     /// let mut csf = CsfStringtable::default();
@@ -302,7 +301,7 @@ impl IntoIterator for CsfStringtable {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfStringtable, CsfLabel};
     ///
     /// let mut csf = CsfStringtable::default();
@@ -343,7 +342,7 @@ impl CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfLabel, CsfString};
     ///
     /// let label = CsfLabel::new("A", "1");
@@ -363,7 +362,7 @@ impl CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfLabel, CsfString};
     ///
     /// let label = CsfLabel::default();
@@ -376,7 +375,7 @@ impl CsfLabel {
     ///
     /// let label = CsfLabel { name: "A".to_string(), strings: vec![CsfString::new("1"), CsfString::new("2")] };
     /// let result = label.get_first();
-    /// assert_eq!(result, Some(&CsfString::new("1")))
+    /// assert_eq!(result, Some(&CsfString::new("1")));
     /// ```
     pub fn get_first(&self) -> Option<&CsfString> {
         self.strings.first()
@@ -391,7 +390,7 @@ impl PartialEq for CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfLabel;
     ///
     /// let a = CsfLabel::new("A", "1");
@@ -417,7 +416,7 @@ impl PartialOrd for CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use std::cmp::Ordering;
     /// use rust_alert::csf::CsfLabel;
     ///
@@ -442,16 +441,16 @@ impl std::cmp::Ord for CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use std::cmp::Ordering;
     /// use rust_alert::csf::CsfLabel;
     ///
     /// let a = CsfLabel::new("A", "1");
     /// let b = CsfLabel::new("B", "2");
     ///
-    /// assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
-    /// assert_eq!(b.partial_cmp(&a), Some(Ordering::Greater));
-    /// assert_eq!(a.partial_cmp(&a), Some(Ordering::Equal));
+    /// assert_eq!(a.cmp(&b), Ordering::Less);
+    /// assert_eq!(b.cmp(&a), Ordering::Greater);
+    /// assert_eq!(a.cmp(&a), Ordering::Equal);
     /// ```
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.name.cmp(&other.name)
@@ -465,7 +464,7 @@ impl std::hash::Hash for CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use std::hash::{DefaultHasher, Hash, Hasher};
     /// use rust_alert::csf::CsfLabel;
     ///
@@ -497,7 +496,7 @@ impl std::fmt::Display for CsfLabel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::{CsfLabel, CsfString};
     ///
     /// let label = CsfLabel::new("A", "1");
@@ -538,7 +537,7 @@ impl CsfString {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfString;
     ///
     /// let string = CsfString::new("A");
@@ -559,7 +558,7 @@ impl std::fmt::Display for CsfString {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use rust_alert::csf::CsfString;
     ///
     /// let string = CsfString::new("A");
@@ -577,9 +576,9 @@ impl std::fmt::Display for CsfString {
 }
 
 impl From<String> for CsfString {
-    fn from(string: String) -> Self {
+    fn from(value: String) -> Self {
         CsfString {
-            value: string.into(),
+            value,
             ..Default::default()
         }
     }
@@ -591,113 +590,389 @@ impl From<CsfString> for String {
     }
 }
 
+impl From<&str> for CsfString {
+    fn from(value: &str) -> Self {
+        CsfString {
+            value: value.to_string(),
+            ..Default::default()
+        }
+    }
+}
+
+impl AsRef<str> for CsfString {
+    fn as_ref(&self) -> &str {
+        &self.value
+    }
+}
+
 #[cfg(test)]
-mod tests {
-    use crate::{
-        csf::{CsfLabel, CsfStringtable},
-        unwrap_assert,
-    };
+mod examples {
+    mod csf_stringtable {
+        use crate as rust_alert;
 
-    #[test]
-    /// Test label creation.
-    fn stringtable_create_label() {
-        let label = "Label".to_string();
-        let string = "String".to_string();
+        #[test]
+        fn new() {
+            use rust_alert::csf::{CsfLanguageEnum, CsfStringtable, CsfVersionEnum};
 
-        let mut expected = CsfStringtable::default();
-        expected.labels.insert(CsfLabel::new(&label, &string));
-        let mut csf = CsfStringtable::default();
-        csf.create(label, string);
+            let csf = CsfStringtable::new(CsfVersionEnum::Cnc, CsfLanguageEnum::DE, 42);
+            assert_eq!(csf.version, CsfVersionEnum::Cnc);
+            assert_eq!(csf.language, CsfLanguageEnum::DE);
+            assert_eq!(csf.extra, 42);
+            assert_eq!(csf.len(), 0);
+        }
 
-        assert_eq!(csf, expected);
+        #[test]
+        fn iter() {
+            use rust_alert::csf::{CsfLabel, CsfStringtable};
+
+            let mut csf = CsfStringtable::default();
+            csf.insert(CsfLabel::new("A", "1"));
+            csf.insert(CsfLabel::new("B", "2"));
+
+            assert_eq!(csf.len(), 2);
+
+            for x in csf.iter() {
+                println!("{x}");
+            }
+
+            assert_eq!(csf.len(), 2);
+        }
+
+        #[test]
+        fn drain() {
+            use rust_alert::csf::{CsfLabel, CsfStringtable};
+
+            let mut csf = CsfStringtable::default();
+            csf.insert(CsfLabel::new("A", "1"));
+            csf.insert(CsfLabel::new("B", "2"));
+
+            assert_eq!(csf.len(), 2);
+
+            for x in csf.drain() {
+                println!("{x}");
+            }
+
+            assert_eq!(csf.len(), 0);
+        }
+
+        #[test]
+        fn create() {
+            use rust_alert::csf::{CsfLabel, CsfStringtable};
+
+            let mut csf = CsfStringtable::default();
+            let result = csf.create("A", "1");
+            assert_eq!(result, None);
+            assert_eq!(csf.len(), 1);
+
+            let result = csf.create("A", "2");
+            assert_eq!(result, Some(CsfLabel::new("A", "1")));
+            assert_eq!(csf.len(), 1);
+        }
+
+        #[test]
+        fn insert() {
+            use rust_alert::csf::*;
+
+            let mut csf = CsfStringtable::default();
+            let label = CsfLabel::new("A", "1");
+
+            let result = csf.insert(label.clone());
+            assert_eq!(result, None);
+            assert_eq!(csf.len(), 1);
+
+            let result = csf.insert(CsfLabel::new("A", "2"));
+            assert_eq!(result, Some(label));
+            assert_eq!(csf.len(), 1);
+        }
+
+        #[test]
+        fn remove() {
+            use rust_alert::csf::{CsfLabel, CsfStringtable};
+
+            let mut csf = CsfStringtable::default();
+            csf.create("A", "1");
+            csf.create("B", "2");
+
+            assert_eq!(csf.len(), 2);
+
+            let result = csf.remove("A");
+            assert_eq!(result, Some(CsfLabel::new("A", "1")));
+            assert_eq!(csf.len(), 1);
+
+            let result = csf.remove("A");
+            assert_eq!(result, None);
+            assert_eq!(csf.len(), 1);
+        }
+
+        #[test]
+        fn get() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+            csf.create("A", "1");
+
+            let result = csf.get("A");
+            assert_eq!(result, Some("1"));
+
+            let result = csf.get("B");
+            assert_eq!(result, None);
+        }
+
+        #[test]
+        fn len() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+
+            let size = csf.len();
+            assert_eq!(size, 0);
+
+            csf.create("A", "1");
+            let size = csf.len();
+            assert_eq!(size, 1);
+
+            csf.create("B", "2");
+            let size = csf.len();
+            assert_eq!(size, 2);
+        }
+
+        #[test]
+        fn strings_len() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+
+            let size = csf.strings_len();
+            assert_eq!(size, 0);
+
+            csf.create("A", "1");
+            let size = csf.strings_len();
+            assert_eq!(size, 1);
+
+            csf.create("B", "2");
+            let size = csf.strings_len();
+            assert_eq!(size, 2);
+        }
+
+        #[test]
+        fn reserve() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+            csf.reserve(42);
+        }
+
+        #[test]
+        fn into_iter() {
+            use rust_alert::csf::{CsfLabel, CsfStringtable};
+
+            let mut csf = CsfStringtable::default();
+            csf.insert(CsfLabel::new("A", "1"));
+            csf.insert(CsfLabel::new("B", "2"));
+
+            // Can't use `csf` after this!
+            let v: Vec<CsfLabel> = csf.into_iter().collect();
+            for x in &v {
+                println!("{x}");
+            }
+        }
     }
 
-    #[test]
-    /// Test label addition.
-    fn stringtable_add_label() {
-        let label = "Label".to_string();
-        let string = "String".to_string();
+    mod csf_label {
+        use crate as rust_alert;
 
-        let mut expected = CsfStringtable::default();
-        expected.labels.insert(CsfLabel::new(&label, &string));
-        let mut csf = CsfStringtable::default();
-        csf.insert(CsfLabel::new(label, string));
+        #[test]
+        fn new() {
+            use rust_alert::csf::{CsfLabel, CsfString};
 
-        assert_eq!(csf, expected);
+            let label = CsfLabel::new("A", "1");
+            assert_eq!(label.name, "A");
+            assert_eq!(label.strings.len(), 1);
+            assert_eq!(label.strings[0], CsfString::new("1"));
+        }
+
+        #[test]
+        fn get_first() {
+            use rust_alert::csf::{CsfLabel, CsfString};
+
+            let label = CsfLabel::default();
+            let result = label.get_first();
+            assert_eq!(result, None);
+
+            let label = CsfLabel::new("A", "1");
+            let result = label.get_first();
+            assert_eq!(result, Some(&CsfString::new("1")));
+
+            let label = CsfLabel {
+                name: "A".to_string(),
+                strings: vec![CsfString::new("1"), CsfString::new("2")],
+            };
+            let result = label.get_first();
+            assert_eq!(result, Some(&CsfString::new("1")));
+        }
+
+        #[test]
+        fn eq() {
+            use rust_alert::csf::CsfLabel;
+
+            let a = CsfLabel::new("A", "1");
+            let b = CsfLabel::new("B", "2");
+            let c = CsfLabel::new("A", "2");
+
+            assert_eq!(a, c);
+            assert_ne!(a, b);
+            assert_ne!(b, c);
+        }
+
+        #[test]
+        fn partial_cmp() {
+            use rust_alert::csf::CsfLabel;
+            use std::cmp::Ordering;
+
+            let a = CsfLabel::new("A", "1");
+            let b = CsfLabel::new("B", "2");
+            let c = CsfLabel::new("A", "2");
+
+            assert_eq!(a.partial_cmp(&c), Some(Ordering::Equal));
+            assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
+            assert_eq!(b.partial_cmp(&c), Some(Ordering::Greater));
+        }
+
+        #[test]
+        fn cmp() {
+            use rust_alert::csf::CsfLabel;
+            use std::cmp::Ordering;
+
+            let a = CsfLabel::new("A", "1");
+            let b = CsfLabel::new("B", "2");
+
+            assert_eq!(a.cmp(&b), Ordering::Less);
+            assert_eq!(b.cmp(&a), Ordering::Greater);
+            assert_eq!(a.cmp(&a), Ordering::Equal);
+        }
+
+        #[test]
+        fn hash() {
+            use rust_alert::csf::CsfLabel;
+            use std::hash::{DefaultHasher, Hash, Hasher};
+
+            let mut hasher = DefaultHasher::new();
+            CsfLabel::new("A", "1").hash(&mut hasher);
+            let a = hasher.finish();
+
+            let mut hasher = DefaultHasher::new();
+            CsfLabel::new("B", "2").hash(&mut hasher);
+            let b = hasher.finish();
+
+            let mut hasher = DefaultHasher::new();
+            CsfLabel::new("A", "2").hash(&mut hasher);
+            let c = hasher.finish();
+
+            assert_eq!(a, c);
+            assert_ne!(a, b);
+            assert_ne!(b, c);
+        }
+
+        #[test]
+        fn fmt() {
+            use rust_alert::csf::{CsfLabel, CsfString};
+
+            let label = CsfLabel::new("A", "1");
+            assert_eq!(format!("{label}"), "A: \"1\"");
+
+            let label = CsfLabel {
+                name: "B".to_string(),
+                strings: vec![],
+            };
+            assert_eq!(format!("{label}"), "B: \"\"");
+
+            let label = CsfLabel {
+                name: "C".to_string(),
+                strings: vec![CsfString::new("1"), CsfString::new("2")],
+            };
+            assert_eq!(format!("{label}"), "C: \"1\"");
+        }
     }
 
-    #[test]
-    /// Test label removal.
-    fn stringtable_remove_label() {
-        let label = "Label".to_string();
+    mod csf_string {
+        use crate as rust_alert;
 
-        let expected = CsfStringtable::default();
-        let mut csf = CsfStringtable::default();
-        csf.labels.insert(CsfLabel::new(&label, "String"));
-        csf.remove(&label);
+        #[test]
+        fn new() {
+            use rust_alert::csf::CsfString;
 
-        assert_eq!(csf, expected);
+            let string = CsfString::new("A");
+            assert_eq!(
+                string,
+                CsfString {
+                    value: "A".to_string(),
+                    ..Default::default()
+                }
+            );
+        }
+
+        #[test]
+        fn fmt() {
+            use rust_alert::csf::CsfString;
+
+            let string = CsfString::new("A");
+            assert_eq!(format!("{string}"), "A");
+
+            let string = CsfString::new("");
+            assert_eq!(format!("{string}"), "");
+
+            let string = CsfString {
+                value: "B".to_string(),
+                extra_value: vec![32],
+            };
+            assert_eq!(format!("{string}"), "B");
+        }
     }
+}
 
-    #[test]
-    /// Test label lookup.
-    fn stringtable_lookup_label() {
-        let label = "Label".to_string();
-        let string = "String".to_string();
+#[cfg(test)]
+mod coverage {
+    mod csf_label {
+        use crate::csf::CsfString;
 
-        let mut csf = CsfStringtable::default();
-        csf.labels.insert(CsfLabel::new(&label, &string));
-        let actual = csf.get(&label);
+        #[test]
+        fn from_string() {
+            let string = "A".to_string();
+            let string: CsfString = string.into();
 
-        assert!(actual.is_some());
-        unwrap_assert!(actual, &string);
+            assert_eq!(string.value, "A");
+            assert!(string.extra_value.is_empty())
+        }
 
-        let actual = csf.get("NoString");
-        assert!(actual.is_none());
-    }
+        #[test]
+        fn into_string() {
+            let string = CsfString::new("A");
+            let string: String = string.into();
+            assert_eq!(string, "A");
 
-    #[test]
-    /// Test label count.
-    fn stringtable_count_labels() {
-        let label = "Label".to_string();
-        let label2 = "Label2".to_string();
+            let string = CsfString {
+                value: string,
+                extra_value: vec![0],
+            };
+            let string: String = string.into();
+            assert_eq!(string, "A");
+        }
 
-        let expected = 2;
-        let mut csf = CsfStringtable::default();
-        csf.labels.insert(CsfLabel::new(label, "String"));
-        csf.labels.insert(CsfLabel::new(label2, "String2"));
-        let actual = csf.len();
+        #[test]
+        fn from_ref_str() {
+            let string: &str = "A";
+            let string: CsfString = string.into();
 
-        assert_eq!(actual, expected);
-    }
+            assert_eq!(string.value, "A");
+            assert!(string.extra_value.is_empty());
+        }
 
-    #[test]
-    /// Test string count.
-    fn stringtable_count_strings() {
-        let label = "Label".to_string();
-        let string = "String".to_string();
-        let string2 = "String2".to_string();
+        #[test]
+        fn as_ref_str() {
+            let string = CsfString::new("A");
+            let string_ref: &str = string.as_ref();
 
-        let expected = 2;
-        let mut csf = CsfStringtable::default();
-        let mut lbl = CsfLabel::new(label, string);
-        lbl.strings.push(string2.into());
-        csf.labels.insert(lbl);
-        let actual = csf.strings_len();
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    /// Test label access.
-    fn label_get_first() {
-        let string = "String";
-
-        let label = CsfLabel::new("Label", string);
-
-        let expected = label.strings.first().unwrap_or_else(|| unreachable!());
-        let actual = label.get_first();
-        assert!(actual.is_some());
-        unwrap_assert!(actual, expected);
+            assert_eq!(string_ref, "A");
+        }
     }
 }

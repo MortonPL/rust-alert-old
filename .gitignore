@@ -1,4 +1,6 @@
 /target
 
+tarpaulin-report.html
+
 *.csf
 *.mix

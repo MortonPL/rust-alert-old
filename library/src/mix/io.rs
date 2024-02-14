@@ -335,7 +335,7 @@ pub fn encrypt_blowfish(key: &BlowfishKey) -> Result<BlowfishKeyEncrypted> {
 }
 
 /// Generate a new WW-like Blowfish key.
-/// 
+///
 /// Implementation based on ccmix by OmniBlade:
 /// <https://github.com/OmniBlade/ccmix/blob/4369c8fab7a484fe363f1e5e4e5ae015811cc12b/src/mix_header.cpp#LL268>
 pub fn generate_blowfish() -> BlowfishKey {
