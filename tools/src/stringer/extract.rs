@@ -1,6 +1,10 @@
 use std::{fs::OpenOptions, path::PathBuf};
 
-use rust_alert::{converters::csf2ini, csf::io::CsfReader, ini::io::IniWriter};
+use rust_alert::{
+    converters::csf2ini,
+    csf::io::{CsfRead, CsfReader},
+    ini::io::IniWriter,
+};
 
 use crate::{Result, RunCommand};
 
@@ -23,7 +27,7 @@ impl RunCommand for ExtractCommand {
             .create(true)
             .truncate(true)
             .open(&self.output)?;
-        let csf = CsfReader::read_file(&mut reader)?;
+        let csf = CsfReader::new().read(&mut reader)?;
         let mut ini = csf2ini(csf)?;
         if self.sort {
             ini.sort_all();

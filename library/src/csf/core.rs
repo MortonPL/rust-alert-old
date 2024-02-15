@@ -1,4 +1,5 @@
 //! CSF (stringtable) structure definitions and manipulation methods.
+
 use std::collections::HashSet;
 
 use crate::csf::{enums::*, iters::*};
@@ -191,10 +192,10 @@ impl CsfStringtable {
         })
     }
 
-    /// Looks up the first string of a label with given name.
+    /// Looks up the [`CsfLabel`] with given name.
     ///
-    /// Returns reference to the value if a label is found and contains any
-    /// strings, otherwise `None`.
+    /// Returns reference to the value if a label is found, otherwise `None`.
+    /// Also see [`get_str`][Self::get_str] to look up just the associated string.
     ///
     /// # Examples
     ///
@@ -205,12 +206,39 @@ impl CsfStringtable {
     /// csf.create("A", "1");
     ///
     /// let result = csf.get("A");
-    /// assert_eq!(result, Some("1"));
+    /// assert_eq!(result, csf.iter().next());
     ///
     /// let result = csf.get("B");
     /// assert_eq!(result, None);
     /// ```
-    pub fn get(&self, name: impl Into<String>) -> Option<&str> {
+    pub fn get(&self, name: impl Into<String>) -> Option<&CsfLabel> {
+        self.labels.get(&CsfLabel {
+            name: name.into(),
+            strings: vec![],
+        })
+    }
+
+    /// Looks up the first string of a label with given name.
+    ///
+    /// Returns reference to the value if a label is found and contains any
+    /// strings, otherwise `None`.
+    /// Also see [`get`][Self::get] to look up an entire [`CsfLabel`].
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use rust_alert::csf::CsfStringtable;
+    ///
+    /// let mut csf = CsfStringtable::default();
+    /// csf.create("A", "1");
+    ///
+    /// let result = csf.get_str("A");
+    /// assert_eq!(result, Some("1"));
+    ///
+    /// let result = csf.get_str("B");
+    /// assert_eq!(result, None);
+    /// ```
+    pub fn get_str(&self, name: impl Into<String>) -> Option<&str> {
         self.labels
             .get(&CsfLabel {
                 name: name.into(),
@@ -360,6 +388,9 @@ impl CsfLabel {
     /// Returns the first [`CsfString`] in a label or `None` if the label
     /// contains no strings.
     ///
+    /// Also see [`get_first_str`][CsfLabel::get_first_str] to just get the
+    /// underlying `&str`.
+    ///
     /// # Examples
     ///
     /// ```ignore
@@ -379,6 +410,33 @@ impl CsfLabel {
     /// ```
     pub fn get_first(&self) -> Option<&CsfString> {
         self.strings.first()
+    }
+
+    /// Returns the first string in a label as a `&str` or `None` if the label
+    /// contains no strings.
+    ///
+    /// Also see [`get_first`][CsfLabel::get_first] to access a whole
+    /// [`CsfString`] in a similar manner.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use rust_alert::csf::{CsfLabel, CsfString};
+    ///
+    /// let label = CsfLabel::default();
+    /// let result = label.get_first_str();
+    /// assert_eq!(result, None);
+    ///
+    /// let label = CsfLabel::new("A", "1");
+    /// let result = label.get_first_str();
+    /// assert_eq!(result, Some("1"));
+    ///
+    /// let label = CsfLabel { name: "A".to_string(), strings: vec![CsfString::new("1"), CsfString::new("2")] };
+    /// let result = label.get_first_str();
+    /// assert_eq!(result, Some("1"));
+    /// ```
+    pub fn get_first_str(&self) -> Option<&str> {
+        self.strings.first().and_then(|s| Some(s.value.as_str()))
     }
 }
 
@@ -712,9 +770,23 @@ mod examples {
             csf.create("A", "1");
 
             let result = csf.get("A");
-            assert_eq!(result, Some("1"));
+            assert_eq!(result, csf.iter().next());
 
             let result = csf.get("B");
+            assert_eq!(result, None);
+        }
+
+        #[test]
+        fn get_str() {
+            use rust_alert::csf::CsfStringtable;
+
+            let mut csf = CsfStringtable::default();
+            csf.create("A", "1");
+
+            let result = csf.get_str("A");
+            assert_eq!(result, Some("1"));
+
+            let result = csf.get_str("B");
             assert_eq!(result, None);
         }
 
@@ -809,6 +881,26 @@ mod examples {
             };
             let result = label.get_first();
             assert_eq!(result, Some(&CsfString::new("1")));
+        }
+
+        #[test]
+        fn get_first_str() {
+            use rust_alert::csf::{CsfLabel, CsfString};
+
+            let label = CsfLabel::default();
+            let result = label.get_first_str();
+            assert_eq!(result, None);
+
+            let label = CsfLabel::new("A", "1");
+            let result = label.get_first_str();
+            assert_eq!(result, Some("1"));
+
+            let label = CsfLabel {
+                name: "A".to_string(),
+                strings: vec![CsfString::new("1"), CsfString::new("2")],
+            };
+            let result = label.get_first_str();
+            assert_eq!(result, Some("1"));
         }
 
         #[test]

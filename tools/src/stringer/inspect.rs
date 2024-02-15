@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, path::PathBuf};
 
-use rust_alert::csf::io::CsfReader;
+use rust_alert::csf::io::{CsfRead, CsfReader};
 
 use crate::RunCommand;
 
@@ -13,7 +13,7 @@ pub struct InspectCommand {
 impl RunCommand for InspectCommand {
     fn run(self) -> crate::Result<()> {
         let mut reader = OpenOptions::new().read(true).open(self.input)?;
-        let csf = CsfReader::read_file(&mut reader)?;
+        let csf = CsfReader::new().read(&mut reader)?;
         println!(
             "Version:      {:?} ({})",
             csf.version,
