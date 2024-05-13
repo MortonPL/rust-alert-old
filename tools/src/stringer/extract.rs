@@ -30,7 +30,7 @@ impl RunCommand for ExtractCommand {
         let csf = CsfReader::new().read(&mut reader)?;
         let mut ini = csf2ini(csf)?;
         if self.sort {
-            ini.sort_all();
+            ini.sort_nested();
         }
         IniWriter::write_file(&ini, &mut writer)?;
         Ok(())

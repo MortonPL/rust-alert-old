@@ -39,7 +39,7 @@ impl RunCommand for BuildCommand {
             .open(&self.output)?;
         let mut ini = IniReader::read_file(&mut reader)?;
         if self.sort {
-            ini.sort_all()
+            ini.sort_nested()
         }
         let mut csf = ini2csf(ini);
         csf.language = self.language;

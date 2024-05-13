@@ -46,6 +46,8 @@ impl CsfPrefixes {
     const STRW_PREFIX: &'static [u8] = b"WRTS";
 }
 
+/// Contains methods to read CSF strings, labels and stringtables from bytes.
+/// See method-level documentation for more details.
 pub trait CsfRead {
     /// Fixed size of the CSF header in bytes.
     const CSF_HEADER_SIZE: usize = 24;
@@ -134,6 +136,8 @@ pub trait CsfRead {
     fn read_string(&mut self, reader: &mut dyn Read) -> Result<CsfString>;
 }
 
+/// Contains methods to write CSF strings, labels and stringtables as bytes.
+/// See method-level documentation for more details.
 pub trait CsfWrite {
     /// Writes the entire [`CsfStringtable`] into a byte sink.
     ///
@@ -390,7 +394,7 @@ mod tests {
 
     use crate::{
         csf::{
-            io::{CsfRead, CsfReader, CsfWrite, Error},
+            io::{CsfPrefixes, CsfRead, CsfReader, CsfWrite, Error},
             CsfLabel, CsfString, CsfStringtable,
         },
         unwrap_assert,
@@ -550,6 +554,18 @@ mod tests {
         unwrap_assert!(actual, expected);
     }
 
+    /// Read a CsfLabel (Err). Missing LBL prefix.
+    #[test]
+    fn read_label_err_lbl() {
+        let buf = vec![b' ', b'R', b'B', b'L'];
+        let reader: &mut dyn Read = &mut buf.as_slice();
+
+        let actual = CsfReader::new().read_label(reader);
+
+        assert!(actual.is_err());
+        matches!(actual.unwrap_err(), Error::LblMissingPrefix);
+    }
+
     /// Read a CSF header (Ok).
     #[test]
     fn read_csf_header_ok() {
@@ -565,6 +581,18 @@ mod tests {
         assert_eq!(csf, expected);
         assert_eq!(len, expected_len);
     }
+
+        /// Read a CSF header (wrong prefix error).
+        #[test]
+        fn read_csf_header_err_prefix() {
+            let mut buf = make_header();
+            buf[0] = b'Z';
+            let reader: &mut dyn Read = &mut buf.as_slice();
+
+            let actual = CsfReader::new().read_header(reader);
+    
+            assert!(matches!(actual, Err(Error::CsfMissingPrefix)));
+        }
 
     /// Read a CsfStringtable (Ok).
     #[test]
@@ -595,6 +623,7 @@ mod tests {
         let mut buf: Vec<u8> = vec![];
         let res = CsfReader::new().write_string(&expected, &mut buf);
         assert!(res.is_ok());
+        assert_eq!(&buf[0..4], CsfPrefixes::STR_PREFIX);
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::new().read_string(reader);
 
@@ -602,23 +631,24 @@ mod tests {
         unwrap_assert!(actual, expected);
     }
 
-        /// Write a wide CsfString (Ok).
-        #[test]
-        fn write_wide_string_ok() {
-            let expected = CsfString {
-                value: "String".into(),
-                extra_value: "Wide".into(),
-            };
-    
-            let mut buf: Vec<u8> = vec![];
-            let res = CsfReader::new().write_string(&expected, &mut buf);
-            assert!(res.is_ok());
-            let reader: &mut dyn Read = &mut buf.as_slice();
-            let actual = CsfReader::new().read_string(reader);
-    
-            assert!(actual.is_ok());
-            unwrap_assert!(actual, expected);
-        }
+    /// Write a wide CsfString (Ok).
+    #[test]
+    fn write_wide_string_ok() {
+        let expected = CsfString {
+            value: "String".into(),
+            extra_value: "Wide".into(),
+        };
+
+        let mut buf: Vec<u8> = vec![];
+        let res = CsfReader::new().write_string(&expected, &mut buf);
+        assert!(res.is_ok());
+        assert_eq!(&buf[0..4], CsfPrefixes::STRW_PREFIX);
+        let reader: &mut dyn Read = &mut buf.as_slice();
+        let actual = CsfReader::new().read_string(reader);
+
+        assert!(actual.is_ok());
+        unwrap_assert!(actual, expected);
+    }
 
     /// Write a CsfLabel (Ok).
     #[test]
@@ -631,6 +661,7 @@ mod tests {
         let mut buf: Vec<u8> = vec![];
         let res = CsfReader::new().write_label(&expected, &mut buf);
         assert!(res.is_ok());
+        assert_eq!(&buf[0..4], CsfPrefixes::LBL_PREFIX);
         let reader: &mut dyn Read = &mut buf.as_slice();
         let actual = CsfReader::new().read_label(reader);
 

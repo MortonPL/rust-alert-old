@@ -39,7 +39,7 @@ impl<'a> From<HashSetIter<'a, CsfLabel>> for Iter<'a> {
 }
 
 /// An owning iterator over [`CsfStringtable`][csf] labels. This struct can be
-/// created by [`into_iter`][into_iter] method of a [`CsfStringtable`][csf]
+/// created by [`into_iter`][into_iter] method of a `CsfStringtable`
 /// (which is provided by [`IntoIterator`] trait).
 ///
 /// [csf]: crate::csf::CsfStringtable
@@ -72,7 +72,7 @@ impl From<HashSetIntoIter<CsfLabel>> for IntoIter {
 }
 
 /// A draining iterator over [`CsfStringtable`][csf] labels. This struct can be
-/// created by [`drain`][drain] method of a [`CsfStringtable`][csf].
+/// created by [`drain`][drain] method of a `CsfStringtable`.
 ///
 /// [csf]: crate::csf::CsfStringtable
 /// [drain]: crate::csf::CsfStringtable::drain
@@ -86,20 +86,20 @@ impl From<HashSetIntoIter<CsfLabel>> for IntoIter {
 /// let mut iter = csf.drain();
 /// ```
 pub struct Drain<'a> {
-    iter: HashSetDrain<'a, CsfLabel>,
+    drain: HashSetDrain<'a, CsfLabel>,
 }
 
 impl<'a> Iterator for Drain<'a> {
     type Item = CsfLabel;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
+        self.drain.next()
     }
 }
 
 impl<'a> From<HashSetDrain<'a, CsfLabel>> for Drain<'a> {
-    fn from(iter: HashSetDrain<'a, CsfLabel>) -> Self {
-        Self { iter }
+    fn from(drain: HashSetDrain<'a, CsfLabel>) -> Self {
+        Self { drain }
     }
 }
 

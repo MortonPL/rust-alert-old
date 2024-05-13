@@ -337,8 +337,7 @@ impl IntoIterator for CsfStringtable {
     /// csf.insert(CsfLabel::new("B", "2"));
     ///
     /// // Can't use `csf` after this!
-    /// let v: Vec<CsfLabel> = csf.into_iter().collect();
-    /// for x in &v {
+    /// for x in csf.into_iter() {
     ///     println!("{x}");
     /// }
     /// ```
@@ -843,8 +842,7 @@ mod examples {
             csf.insert(CsfLabel::new("B", "2"));
 
             // Can't use `csf` after this!
-            let v: Vec<CsfLabel> = csf.into_iter().collect();
-            for x in &v {
+            for x in csf.into_iter() {
                 println!("{x}");
             }
         }

@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use sha1::{Digest, Sha1};
 
 use crate::core::{crc, GameEnum};
-use crate::utils::{path_to_str, PathToStringError};
+use crate::utils::{path_to_filename, PathToStringError};
 
 /// Size of a Blowfish key used in MIX encryption.
 pub const BLOWFISH_KEY_SIZE: usize = 56;
@@ -135,7 +135,7 @@ impl Mix {
         allow_overwrite: bool,
     ) -> Result<()> {
         let mut data = read(&path)?;
-        let id = crc(path_to_str(path)?, crc_version);
+        let id = crc(path_to_filename(path)?, crc_version);
         let offset = self.get_body_size() as u32;
         let size = data.len() as u32;
 

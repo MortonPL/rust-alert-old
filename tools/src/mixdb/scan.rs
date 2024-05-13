@@ -3,7 +3,7 @@ use std::{fs::OpenOptions, path::PathBuf};
 use rust_alert::{
     core::{crc, GameEnum},
     ini::{io::IniWriter, IniFile, IniSection},
-    utils::path_to_str,
+    utils::path_to_filename,
 };
 
 use crate::{Result, RunCommand};
@@ -44,7 +44,7 @@ fn inner(path: PathBuf, section: &mut IniSection, game: GameEnum) -> Result<()> 
     let paths = std::fs::read_dir(path)?;
     for res in paths {
         let path = res?.path();
-        let str = path_to_str(&path)?;
+        let str = path_to_filename(&path)?;
         if path.is_dir() {
             inner(path, section, game)?;
         } else {

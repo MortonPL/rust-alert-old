@@ -7,6 +7,15 @@ use crc32fast;
 use crate::core::general::GameEnum;
 
 /// General CRC function that picks implementation depending on game version.
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// use rust_alert::core::{crc, GameEnum};
+///
+/// assert_eq!(crc("a10.shp", GameEnum::TD), 0x5CB0AAD5u32 as i32);
+/// assert_eq!(crc("bomb.shp", GameEnum::YR), 0x50F0D1EFu32 as i32);
+/// ```
 pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
     match game {
         GameEnum::TD => crc_td(value),
@@ -19,6 +28,14 @@ pub fn crc(value: impl AsRef<str>, game: GameEnum) -> i32 {
 }
 
 /// "CRC" function used in TD and RA.
+///
+/// # Examples
+/// 
+/// ```ignore
+/// use rust_alert::core::crc_td;
+/// 
+/// assert_eq!(crc_td("a10.shp"), 0x5CB0AAD5u32 as i32);
+/// ```
 pub fn crc_td(string: impl AsRef<str>) -> i32 {
     let string = string.as_ref();
     if string.is_empty() {
@@ -40,6 +57,14 @@ pub fn crc_td(string: impl AsRef<str>) -> i32 {
 }
 
 /// CRC function used in TS, FS, RA2 and YR.
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// use rust_alert::core::crc_ts;
+/// 
+/// assert_eq!(crc_ts("bomb.shp"), 0x50F0D1EFu32 as i32);
+/// ```
 pub fn crc_ts(string: impl AsRef<str>) -> i32 {
     let string = string.as_ref();
     let len = string.len();
@@ -64,9 +89,36 @@ pub fn crc_ts(string: impl AsRef<str>) -> i32 {
 }
 
 #[cfg(test)]
+mod examples {
+    use crate as rust_alert;
+
+    #[test]
+    fn crc() {
+        use rust_alert::core::{crc, GameEnum};
+
+        assert_eq!(crc("a10.shp", GameEnum::TD), 0x5CB0AAD5u32 as i32);
+        assert_eq!(crc("bomb.shp", GameEnum::YR), 0x50F0D1EFu32 as i32);
+    }
+
+    #[test]
+    fn crc_td() {
+        use rust_alert::core::crc_td;
+
+        assert_eq!(crc_td("a10.shp"), 0x5CB0AAD5u32 as i32);
+    }
+
+    #[test]
+    fn crc_ts() {
+        use rust_alert::core::crc_ts;
+
+        assert_eq!(crc_ts("bomb.shp"), 0x50F0D1EFu32 as i32);
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use crate::core::crc::GameEnum;
-    use crate::core::crc::{crc, crc_td, crc_ts};
+    use crate::core::GameEnum;
+    use crate::core::{crc, crc_td, crc_ts};
 
     #[test]
     /// Test TD CRC function.

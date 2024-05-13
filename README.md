@@ -37,3 +37,9 @@ Structures and utilities for C&C formats written in Rust.
   - [ ] CI
   - [ ] Profile and optimize stuff
   - [ ] Good tests/code coverage
+
+### Running coverage
+
+```sh
+cargo tarpaulin --lib --out html --skip-clean
+```

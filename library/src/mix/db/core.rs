@@ -36,6 +36,7 @@ impl TryFrom<u32> for LMDVersionEnum {
             x if x == LMDVersionEnum::TD as u32 => Ok(LMDVersionEnum::TD),
             x if x == LMDVersionEnum::RA as u32 => Ok(LMDVersionEnum::RA),
             x if x == LMDVersionEnum::TS as u32 => Ok(LMDVersionEnum::TS),
+            x if x == LMDVersionEnum::RA2 as u32 => Ok(LMDVersionEnum::RA2),
             x if x == LMDVersionEnum::YR as u32 => Ok(LMDVersionEnum::YR),
             x => Err(Error::UnknownLMDVersion(x)),
         }

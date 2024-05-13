@@ -7,7 +7,7 @@ use rust_alert::{
         io::MixWriter,
         Mix, LMD_KEY_TD, LMD_KEY_TS,
     },
-    utils::path_to_str,
+    utils::path_to_filename,
 };
 
 use crate::{utils::encrypt_mix, Result, RunCommand};
@@ -69,7 +69,7 @@ fn build_inner(
     };
     for res in paths {
         let path = res?.path();
-        let str = path_to_str(&path)?;
+        let str = path_to_filename(&path)?;
         if path.is_dir() {
             let mut temp: Vec<u8> = vec![];
             build_inner(&mut temp, &path, args, new_mix)?;

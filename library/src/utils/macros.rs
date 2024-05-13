@@ -1,4 +1,7 @@
+//! Macro collection, mostly for easier testing and printing.
+
 /// Prints Option's value or None.
+/// 
 /// # Example:
 /// ```rs
 /// let x = Some(1);
@@ -38,7 +41,7 @@ macro_rules! printoptionmapln {
     };
 }
 
-/// Initializes a default (zeroed) value for an array type.
+/// Initializes a default (zeroed) value for an u8 array type.
 /// # Example:
 /// ```rs
 /// type A = [u8; 12];
