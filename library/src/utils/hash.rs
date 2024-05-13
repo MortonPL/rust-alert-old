@@ -10,6 +10,7 @@ impl std::hash::Hasher for Nothing32Hasher {
         self.0
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn write(&mut self, _bytes: &[u8]) {
         unimplemented!()
     }

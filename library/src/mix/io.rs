@@ -36,21 +36,29 @@ pub const FAST_D: &[u8] = &[
     174, 208, 219, 91, 94, 16, 84, 124, 198, 34, 196, 71, 156, 19, 153, 188, 55, 86, 10,
 ];
 
+/// An RSA-encrypted 56 byte Blowfish key, split into two 40 byte parts.
 pub type BlowfishKeyEncrypted = [u8; ENCRYPTED_BLOWFISH_KEY_SIZE];
 
+/// The error type for serialization and deserialization of MIX files.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// An [`std::io::Error`].
     #[error("{0}")]
     IO(#[from] std::io::Error),
+    /// An [`std::string::FromUtf8Error`].
     #[error("{0}")]
     Utf8Error(#[from] std::string::FromUtf8Error),
+    /// An LMD file was found, but its prefix/header didn't match the one in XCC LMDs.
     #[error("Attempted to read the LMD, but the prefix didn't match")]
     InvalidLMDPrefix,
+    /// An [`crate::mix::core::Error`].
     #[error("{0}")]
     MIX(#[from] crate::mix::core::Error),
+    /// Blowfish key was wrong size.
     #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
     WrongBlowfishSizeDecrypted(usize),
-    #[error("Expected Blowfish key to be 56 bytes long, but was {0}")]
+    /// Blowfish key was wrong size.
+    #[error("Expected Blowfish key to be 80 bytes long, but was {0}")]
     WrongBlowfishSizeEncrypted(usize),
 }
 
@@ -331,7 +339,7 @@ pub fn encrypt_blowfish(key: &BlowfishKey) -> Result<BlowfishKeyEncrypted> {
     // Ensure that the result is exactly 80 bytes long.
     let len = key.len();
     key.try_into()
-        .or(Err(Error::WrongBlowfishSizeDecrypted(len)))
+        .or(Err(Error::WrongBlowfishSizeEncrypted(len)))
 }
 
 /// Generate a new WW-like Blowfish key.

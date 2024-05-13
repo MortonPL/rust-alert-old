@@ -73,9 +73,9 @@ fn build_inner(
         if path.is_dir() {
             let mut temp: Vec<u8> = vec![];
             build_inner(&mut temp, &path, args, new_mix)?;
-            mix.add_file_raw(temp, crc(&str, crc_version))?;
+            mix.add_file_raw(temp, crc(&str, crc_version), false)?;
         } else {
-            mix.add_file_path(path, crc_version, args.overwrite)?;
+            mix.add_file_from_path(path, crc_version, args.overwrite)?;
         }
         if args.lmd {
             lmd.db.names.insert(crc(&str, crc_version), str);
@@ -88,7 +88,7 @@ fn build_inner(
             true => LMD_KEY_TD,
             false => LMD_KEY_TS,
         };
-        mix.add_file_raw(temp, lmd_id)?;
+        mix.add_file_raw(temp, lmd_id, false)?;
     }
     if args.encrypt {
         encrypt_mix(&mut mix, &args.key)?;
